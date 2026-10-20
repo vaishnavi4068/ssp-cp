@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ssp-cp
+data:
+  SSP_HTTP_ADDR: ":8080"
+  SSP_TEMPORAL_NAMESPACE: ssp
+  SSP_INTEGRATIONS_MODE: twin
+  SSP_MIGRATIONS_DIR: /db/migrations
