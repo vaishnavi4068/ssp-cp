@@ -1,0 +1,13 @@
+image:
+  repository: ssp-cp
+  tag: dev
+  pullPolicy: IfNotPresent
+api:
+  replicas: 2
+worker:
+  replicas: 2
+serviceAccounts:
+  api: ssp-cp-api@PROJECT.iam.gserviceaccount.com
+  worker: ssp-control-worker@PROJECT.iam.gserviceaccount.com
+  migrate: ssp-cp-migrate@PROJECT.iam.gserviceaccount.com
+httpPort: 8080

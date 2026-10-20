@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ssp-cp-control-worker
+spec:
+  replicas: {{ .Values.worker.replicas }}
+  selector:
+    matchLabels:
+      app: ssp-cp-control-worker
+  template:
+    metadata:
+      labels:
+        app: ssp-cp-control-worker
+    spec:
+      serviceAccountName: ssp-cp-control-worker
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+      containers:
+        - name: worker
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/usr/local/bin/worker"]
+          envFrom:
+            - configMapRef:
+                name: ssp-cp
