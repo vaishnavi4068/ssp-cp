@@ -1,0 +1,4 @@
+[submodule "docs/specs"]
+	path = docs/specs
+	url = https://github.com/vaishnavi4068/ssp-doc.git
+	branch = main
