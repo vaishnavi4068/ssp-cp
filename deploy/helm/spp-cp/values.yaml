@@ -24,12 +24,11 @@ serviceAccounts:
   create: true
   cp:
     name: "spp-cp"
-    # TODO: supply exact spp-cp Workload Identity GSA email if distinct from runner SA
-    gsaEmail: "TODO-spp-cp-sa@microdrive-dev.iam.gserviceaccount.com"
+    # MVP shares spp-deploy GSA; should be split to its own dedicated least-privilege GSA post-MVP
+    gsaEmail: "spp-deploy@microdrive-dev.iam.gserviceaccount.com"
   runner:
-    name: "spp-runner"
-    # BLK-003 TODO: central platform runner SA ("kill button") in microdrive-dev
-    gsaEmail: "TODO-runner-sa@microdrive-dev.iam.gserviceaccount.com"
+    name: "spp-tf-runner"
+    gsaEmail: "spp-deploy@microdrive-dev.iam.gserviceaccount.com"
 
 alloydb:
   cluster: "spp-alloydb"

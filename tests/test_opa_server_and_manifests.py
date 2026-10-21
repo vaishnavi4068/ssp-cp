@@ -131,6 +131,10 @@ def test_helm_values_and_opa_k8s_manifests():
         values["kms"]["defaultGcsKeyName"]
         == "projects/microdrive-dev/locations/us-east1/keyRings/spp-keyring/cryptoKeys/spp-gcs-cmek"
     )
+    assert values["serviceAccounts"]["cp"]["name"] == "spp-cp"
+    assert values["serviceAccounts"]["cp"]["gsaEmail"] == "spp-deploy@microdrive-dev.iam.gserviceaccount.com"
+    assert values["serviceAccounts"]["runner"]["name"] == "spp-tf-runner"
+    assert values["serviceAccounts"]["runner"]["gsaEmail"] == "spp-deploy@microdrive-dev.iam.gserviceaccount.com"
     assert values["opa"]["namespace"] == "spp-policy"
 
     opa_k8s_path = repo_root / "deploy" / "k8s" / "opa-deployment.yaml"

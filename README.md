@@ -27,6 +27,9 @@ Python FastAPI Control Plane API (`ssp-cp`) and Open Policy Agent (`OPA`) policy
 4. **Build & Deployment (`Dockerfile`, `cloudbuild.yaml`, `deploy/helm/spp-cp/`):**
    - `cloudbuild.yaml` builds and pushes `us-east1-docker.pkg.dev/microdrive-dev/spp/spp-cp:<sha>`.
    - Helm chart `deploy/helm/spp-cp` targets namespace `spp-platform` (internal only, scheduled on `spp-pool` with `nodeSelector: workload=spp` and toleration `dedicated=spp:NoSchedule`).
+   - **Workload Identity Service Accounts (`deploy/helm/spp-cp/values.yaml`):**
+     - `serviceAccounts.runner`: KSA `spp-tf-runner` bound to `spp-deploy@microdrive-dev.iam.gserviceaccount.com`.
+     - `serviceAccounts.cp`: KSA `spp-cp` bound to `spp-deploy@microdrive-dev.iam.gserviceaccount.com` for MVP (**Note:** `spp-cp` should be migrated to its own dedicated least-privilege GCP Service Account post-MVP).
 
 ## Running Tests Locally
 

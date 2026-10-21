@@ -154,7 +154,7 @@ class Settings:
     runner_service_account: str = field(
         default_factory=lambda: os.getenv(
             "SPP_RUNNER_SA_EMAIL",
-            "TODO-runner-sa@microdrive-dev.iam.gserviceaccount.com",
+            "spp-deploy@microdrive-dev.iam.gserviceaccount.com",
         )
     )
     state_bucket: str = field(
