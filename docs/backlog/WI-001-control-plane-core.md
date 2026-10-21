@@ -84,7 +84,7 @@ Build the Python FastAPI control plane API (`ssp-cp`) deployed directly on GKE `
    - Provide Helm/Kubernetes manifests for namespace `spp-platform` on GKE `md-dev` (`nodeSelector: workload=spp`, toleration `dedicated=spp:NoSchedule`, Workload Identity annotation, direct GKE Ingress / internal LoadBalancer Service).
 3. **Gate 1 (`Requested`) Intake & Normalization (`ADR-GLB-003`, `ADR-GLB-006`, `ADR-SVC-001`):**
    - Write `idp.submission` (`UNIQUE (apm_id, idempotency_key)`) and `idp.request` synchronously to AlloyDB without routing the initial write through Temporal (`ADR-GLB-001 REQ-3`).
-   - Normalize raw intake values (`"restrict" -> "restricted"`, `"APM0017299" -> "apm0017299"`, `"<LOB>" -> "<lob>"`, `"sandbox"|"dev"|"qa"|"test"|"pdev"|"pqa"|"preprod" -> "nonprod"`).
+   - Normalize raw intake values (`"restrict" -> "restricted"`, `"APM12345" -> "apm12345"` via `^APM\d{5}$` case-insensitive -> lowercase `apm\d{5}`, `"<LOB>" -> "<lob>"`, `"sandbox"|"dev"|"qa"|"test"|"pdev"|"pqa"|"preprod" -> "nonprod"`).
    - Compute `canonical_sha256` (`sort_keys=True, separators=(",", ":")`) for `raw_payload_sha256` and `requested_spec_sha256`.
    - Enforce naming rules from `specs/naming/naming-spec.json` (`GCS-NAME-001..003` with 4-char random suffix draw up to 5 attempts, `SPN-NAME-001..002`, `NAM-RSV-001`, `NAM-IMM-001`, `NAM-LEG-001`).
    - Reject any secret-bearing keys or values (`INV-1`) and any region other than `us-east1`.
