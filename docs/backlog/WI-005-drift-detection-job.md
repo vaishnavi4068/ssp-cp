@@ -34,7 +34,7 @@ depends_on:
   - WI-004
 blockers:
   - BLK-001 (GitHub App spp-factory credentials for live factory PR push)
-  - BLK-003 (Runner GCP service account email in microdrive-dev: TODO)
+  - BLK-003 (Runner GCP service account email in <spp-factory-host-project-id>: TODO)
 factory_stations:
   - impact (requirements-impact)
   - plan (change-plan)
@@ -50,7 +50,7 @@ factory_stations:
 
 ## Goal
 
-Implement the independent scheduled and on-demand drift detection job (`DriftSchedule` `drift-<project_id>` triggering `tf-refresh-plan-<20hex>` in namespace `spp-platform`) that reads real GCP resources into `Observed` (`gs://microdrive-dev-spp-tfstate/projects/<project_id>/observed/scan-<window>/plan.json`), compares `Observed` against `Expected` via JSON-pointer diff (minus `idp.resource_kind.drift_ignore_paths`), operates strictly in **alert-only mode (no auto-remediation / no auto-reapply)**, and writes short (`<= 2 KB`) projections (`idp.resource_observed`) and structured drift summaries (`idp.drift_finding`) into AlloyDB for PostgreSQL.
+Implement the independent scheduled and on-demand drift detection job (`DriftSchedule` `drift-<project_id>` triggering `tf-refresh-plan-<20hex>` in namespace `spp-platform`) that reads real GCP resources into `Observed` (`gs://<spp-factory-host-project-id>-spp-tfstate/projects/<project_id>/observed/scan-<window>/plan.json`), compares `Observed` against `Expected` via JSON-pointer diff (minus `idp.resource_kind.drift_ignore_paths`), operates strictly in **alert-only mode (no auto-remediation / no auto-reapply)**, and writes short (`<= 2 KB`) projections (`idp.resource_observed`) and structured drift summaries (`idp.drift_finding`) into AlloyDB for PostgreSQL.
 
 ## Target Repositories
 
@@ -62,7 +62,7 @@ Implement the independent scheduled and on-demand drift detection job (`DriftSch
 ### Governing ADRs
 - **[`ADR-AUT-002`](https://github.com/vaishnavi4068/ssp-doc/blob/main/adr/automation/ADR-AUT-002-day-2-operations-scope.md):** Day-2 Operations, Drift Detection, and Deletion Governance — Temporal Schedule `drift-<project_id>`, `phase = 'refresh_plan'` with schedule window `run_key` (e.g., `2026-10-23T06`), JSON-pointer comparison minus `idp.resource_kind.drift_ignore_paths`, whole-map comparison for `labels` and `iam_bindings`, drift finding kinds (`out_of_band_change`, `config_divergence`, `missing_in_cloud`, `unmanaged_in_cloud`), **alert-only policy (never auto-reapply)**, and `status` (`OPEN`, `ACKNOWLEDGED`, `RESOLVED`, `ACCEPTED`) / `resolution` (`spec_updated`, `accepted_risk`, `resource_deleted`) vocabularies (`REQ-4..5`, `GR-2`, `GR-4`).
 - **[`ADR-AUT-001`](https://github.com/vaishnavi4068/ssp-doc/blob/main/adr/automation/ADR-AUT-001-terraform-execution-k8s-job.md):** Deterministic Kubernetes Job naming (`tf-refresh-plan-<20hex>`) in `spp-platform` and `su-gcp-<project_id>` serialization (`INV-7`, `INV-8`).
-- **[`ADR-GLB-003`](https://github.com/vaishnavi4068/ssp-doc/blob/main/adr/global/ADR-GLB-003-four-state-model.md) & [`ADR-GLB-004`](https://github.com/vaishnavi4068/ssp-doc/blob/main/adr/global/ADR-GLB-004-data-model-and-database.md):** Storage split: full `observed/scan-<window>/plan.json` snapshot in `gs://microdrive-dev-spp-tfstate`; narrow `idp.observation` row, `< 2000`-byte `idp.resource_observed.projection` (upserted only when `projection_sha256` changes), and `idp.drift_finding` summary rows in AlloyDB (`REQ-3`, `REQ-6`).
+- **[`ADR-GLB-003`](https://github.com/vaishnavi4068/ssp-doc/blob/main/adr/global/ADR-GLB-003-four-state-model.md) & [`ADR-GLB-004`](https://github.com/vaishnavi4068/ssp-doc/blob/main/adr/global/ADR-GLB-004-data-model-and-database.md):** Storage split: full `observed/scan-<window>/plan.json` snapshot in `gs://<spp-factory-host-project-id>-spp-tfstate`; narrow `idp.observation` row, `< 2000`-byte `idp.resource_observed.projection` (upserted only when `projection_sha256` changes), and `idp.drift_finding` summary rows in AlloyDB (`REQ-3`, `REQ-6`).
 - **[`ADR-GLB-007`](https://github.com/vaishnavi4068/ssp-doc/blob/main/adr/global/ADR-GLB-007-governance-gates-and-policy-rego.md):** Drift severity classification table (`critical`, `high`, `medium`, `low`) and `guardrail_rule_id` linkage (`REQ-6`, `GR-5`).
 - **[`ADR-GLB-008`](https://github.com/vaishnavi4068/ssp-doc/blob/main/adr/global/ADR-GLB-008-label-and-tag-standard.md) & [`ADR-GLB-009`](https://github.com/vaishnavi4068/ssp-doc/blob/main/adr/global/ADR-GLB-009-resource-kind-registry.md):** Cloud Asset Inventory correlation via `idp_resource_id` label and per-kind `drift_ignore_paths` (`['/force_destroy']` on `gcs_bucket` and `spanner_instance`; `['/ddl', '/deletion_protection']` on `spanner_database`).
 - **[`ADR-SVC-001`](https://github.com/vaishnavi4068/ssp-doc/blob/main/adr/endpoint-service/ADR-SVC-001-first-vertical-slice-gcs-bucket.md) & [`ADR-SVC-002`](https://github.com/vaishnavi4068/ssp-doc/blob/main/adr/endpoint-service/ADR-SVC-002-spanner-instance-and-database.md):** Concrete drift walkthroughs for `gcs_bucket` (`public_access_prevention` `"enforced" -> "inherited"`, `severity = "critical"`, `guardrail_rule_id = "GCS-PAP-001"`) and `spanner_instance` (`processing_units` `100 -> 300`, `severity = "medium"`).
@@ -78,7 +78,7 @@ Implement the independent scheduled and on-demand drift detection job (`DriftSch
 1. **Scheduled & On-Demand Refresh-Plan Runner Job (`ADR-AUT-001`, `ADR-AUT-002`):**
    - Register Temporal Schedule `drift-<project_id>` for each active `idp.state_unit` (plus an on-demand API trigger in `ssp-cp`), signaling `StateUnitReconcilerWorkflow` (`su-gcp-<project_id>`) with `drift_scan {window}`.
    - Derive `operation_id = f"op:{state_unit_id}:r{applied_expected_rev}:refresh_plan:{window}"` and `k8s_job_name = idp.k8s_job_name(operation_id, "refresh_plan")` (`tf-refresh-plan-<20hex>`).
-   - Run `terraform plan -refresh-only -detailed-exitcode -out=refresh.plan` and `terraform show -json refresh.plan > plan.json` inside the Kubernetes Job in namespace `spp-platform`, uploading `plan.json` to `gs://microdrive-dev-spp-tfstate/projects/<project_id>/observed/scan-<window>/plan.json` without advancing `default.tfstate` `state_serial` (`state_serial_before == state_serial_after`).
+   - Run `terraform plan -refresh-only -detailed-exitcode -out=refresh.plan` and `terraform show -json refresh.plan > plan.json` inside the Kubernetes Job in namespace `spp-platform`, uploading `plan.json` to `gs://<spp-factory-host-project-id>-spp-tfstate/projects/<project_id>/observed/scan-<window>/plan.json` without advancing `default.tfstate` `state_serial` (`state_serial_before == state_serial_after`).
 2. **JSON-Pointer Drift Comparer & Severity Classification (`ADR-AUT-002`, `ADR-GLB-007`, `ADR-GLB-009`):**
    - For each active member in the state unit's current `Expected` revision, extract the refreshed cloud values from `plan.json` (keyed by `cloud_resource_id` / `tf_address`), strip any `sensitive_values`, verify `< 2000` bytes, and compute the `Observed` projection (`idp.resource_observed.projection`) and `projection_sha256`.
    - Upsert `idp.resource_observed` **only when `projection_sha256` is distinct from the stored hash** (`WHERE ro.projection_sha256 IS DISTINCT FROM EXCLUDED.projection_sha256`).
@@ -100,7 +100,7 @@ Implement the independent scheduled and on-demand drift detection job (`DriftSch
 
 1. `k8s_job_name("op:af42f828-3378-5ee2-8e9b-2378d2314f97:r2:refresh_plan:2026-10-23T06", "refresh_plan")` evaluates to `"tf-refresh-plan-415a15a935cbd63f95e1"`, matching `specs/examples/gcs_bucket.gates.json`.
 2. Unit and integration tests against the `specs/examples/gcs_bucket.gates.json` drift fixture (`public_access_prevention` switched from `"enforced"` to `"inherited"`) verify:
-   - `idp.observation` records `source = "refresh_plan"`, `snapshot_uri = "gs://microdrive-dev-spp-tfstate/projects/<lob>-nonprod-orders-svc/observed/scan-2026-10-23T06/plan.json"`, `state_serial_before = 6`, `state_serial_after = 6`, and `drift_detected = true`.
+   - `idp.observation` records `source = "refresh_plan"`, `snapshot_uri = "gs://<spp-factory-host-project-id>-spp-tfstate/projects/<lob>-nonprod-orders-svc/observed/scan-2026-10-23T06/plan.json"`, `state_serial_before = 6`, `state_serial_after = 6`, and `drift_detected = true`.
    - `idp.drift_finding` records `drift_kind = "out_of_band_change"`, `attribute_path = "/public_access_prevention"`, `expected_value = "enforced"`, `observed_value = "inherited"`, `severity = "critical"`, `guardrail_rule_id = "GCS-PAP-001"`, and `status = "OPEN"`.
    - Zero `tf-apply-*` Jobs are launched automatically (strictly alert-only).
 3. Unit and integration tests against the `specs/examples/spanner.gates.json` drift fixture (`processing_units` changed out-of-band from `100` to `300` on a non-autoscaled instance) verify `drift_kind = "out_of_band_change"`, `attribute_path = "/processing_units"`, `expected_value = 100`, `observed_value = 300`, `severity = "medium"`, `guardrail_rule_id = null`, `status = "OPEN"`.
@@ -111,7 +111,7 @@ Implement the independent scheduled and on-demand drift detection job (`DriftSch
 - **Depends On:** `WI-001` (`ssp-cp` AlloyDB schema), `WI-002` (`ssp-workers` runner infrastructure), `WI-004` (`ssp-module-gcs-bucket` for live vertical-slice drift testing).
 - **External Blockers (`TODO`):**
   - **`BLK-001`:** GitHub App `spp-factory` credentials (`GITHUB_APP_ID`: `TODO`, `GITHUB_APP_INSTALLATION_ID`: `TODO`, key in Secret Manager `spp-factory-github-app-key`: `TODO`).
-  - **`BLK-003`:** Runner GCP Service Account email (`<TODO-runner-sa>@microdrive-dev.iam.gserviceaccount.com`) for live `terraform plan -refresh-only` execution in `microdrive-dev`.
+  - **`BLK-003`:** Runner GCP Service Account email (`<TODO-runner-sa>@<spp-factory-host-project-id>.iam.gserviceaccount.com`) for live `terraform plan -refresh-only` execution in `<spp-factory-host-project-id>`.
 
 ## Factory Stations & Role Skills (`spp-factory-foundation`)
 

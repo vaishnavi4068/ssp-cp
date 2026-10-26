@@ -29,7 +29,7 @@ depends_on:
   - WI-004
   - WI-005
 blockers:
-  - Deferred by ADR-BP-002 until Phase 3 (headless GCS E2E via API) and Phase 4 (GCS Day-2 & drift) are proven in microdrive-dev
+  - Deferred by ADR-BP-002 until Phase 3 (headless GCS E2E via API) and Phase 4 (GCS Day-2 & drift) are proven in <spp-factory-host-project-id>
   - BLK-001 (GitHub App spp-factory credentials + creation of repo ssp-ui when Phase 5 begins)
 factory_stations:
   - impact (requirements-impact)
@@ -50,7 +50,7 @@ factory_stations:
 
 ## Target Repository
 
-- **`github.com/vaishnavi4068/ssp-ui`** *(deferred to Phase 5; when built, deployed in Kubernetes namespace `spp-platform` on GKE `md-dev`, node pool `spp-pool`)*.
+- **`github.com/vaishnavi4068/ssp-ui`** *(deferred to Phase 5; when built, deployed in Kubernetes namespace `spp-platform` on the SPP GKE cluster, node pool `spp-pool`)*.
 
 ## Inputs (`ssp-doc` `main`)
 
@@ -84,7 +84,7 @@ factory_stations:
 
 1. **During MVP (`WI-001..005`):** Zero UI dependencies block `ssp-cp`, `ssp-workers`, `ssp-module-gcs-bucket`, or `ssp-module-spanner`; 100% of provisioning, approval, rollback, and drift flows are exercisable via the `ssp-cp` REST API (`ADR-BP-002 REQ-2`).
 2. **When Phase 5 (`WI-006`) Is Triggered:**
-   - `ssp-ui` builds cleanly with TypeScript (`tsc --noEmit`), Vite, and Tailwind CSS, and deploys to namespace `spp-platform` on GKE `md-dev` (`spp-pool`).
+   - `ssp-ui` builds cleanly with TypeScript (`tsc --noEmit`), Vite, and Tailwind CSS, and deploys to namespace `spp-platform` on the SPP GKE cluster (`spp-pool`).
    - Adding a new `idp.resource_kind` row and JSON Schema renders the new resource's thin request form dynamically without modifying or redeploying `ssp-ui` React components (`ADR-GLB-002 REQ-3`, `SC-2`).
    - Zero secret fields exist in any UI form (`INV-1`).
 
@@ -106,4 +106,4 @@ factory_stations:
 | **5. `review`** | `change-review` | Audits diff for template-driven rendering (no hardcoded per-kind forms), zero secret fields, and `SPP` branding only. |
 | **6. `approval`** | Human Gate | Architect (`Manoj`) and Approvers (`Dwayne`, `Norm`) review and approve PR. |
 | **7. `merge`** | `control-plane` | Merges PR to `ssp-ui` `main`. |
-| **8. `reconcile`** | `drift-and-reconciliation`, `standards-feedback` | Verifies deployed UI in `spp-platform` on `md-dev`. |
+| **8. `reconcile`** | `drift-and-reconciliation`, `standards-feedback` | Verifies deployed UI in `spp-platform` on the SPP GKE cluster. |

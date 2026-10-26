@@ -1,6 +1,6 @@
 ---
 id: WI-003
-title: Policy gates — internal OPA Deployment on md-dev, API intake/approval evaluation, and Conftest plan gate
+title: Policy gates — internal OPA Deployment on SPP GKE cluster, API intake/approval evaluation, and Conftest plan gate
 repo: ssp-cp
 target_repos:
   - ssp-cp
@@ -48,7 +48,7 @@ factory_stations:
 
 ## Goal
 
-Deploy a plain **Open Policy Agent (OPA) server `Deployment` (NOT OPA Gatekeeper)** in its own dedicated Kubernetes namespace on GKE `md-dev` (internal ClusterIP only, scheduled on `spp-pool`), loading versioned Rego bundles from a policy repository; integrate `ssp-cp` to call the OPA server at intake (`stage = 'requested'`) and approval (`stage = 'approved'`) and persist all evaluation results and guardrail mutations in `idp.policy_evaluation` and `idp.approval.guardrail_trace`; and execute the **same Rego policies via `conftest`** against Terraform `plan.json` (`terraform show -json <planfile>`) inside the `spp-platform` Terraform Kubernetes Jobs (`stage = 'plan'`) before `terraform apply` can proceed.
+Deploy a plain **Open Policy Agent (OPA) server `Deployment` (NOT OPA Gatekeeper)** in its own dedicated Kubernetes namespace on the SPP GKE cluster (internal ClusterIP only, scheduled on `spp-pool`), loading versioned Rego bundles from a policy repository; integrate `ssp-cp` to call the OPA server at intake (`stage = 'requested'`) and approval (`stage = 'approved'`) and persist all evaluation results and guardrail mutations in `idp.policy_evaluation` and `idp.approval.guardrail_trace`; and execute the **same Rego policies via `conftest`** against Terraform `plan.json` (`terraform show -json <planfile>`) inside the `spp-platform` Terraform Kubernetes Jobs (`stage = 'plan'`) before `terraform apply` can proceed.
 
 ## Target Repositories
 
@@ -64,7 +64,7 @@ Deploy a plain **Open Policy Agent (OPA) server `Deployment` (NOT OPA Gatekeeper
 - **[`ADR-GLB-008`](https://github.com/vaishnavi4068/ssp-doc/blob/main/adr/global/ADR-GLB-008-label-and-tag-standard.md):** Label and Tag Standard — **8 mandatory labels** (`sppappid`, `costcenter`, `environmenttype`, `primarylob`, `datasensitivity`, `owner`, `provisionedby`, `idp_resource_id`), **`environmentsubtype` dropped everywhere**, `environmenttype` restricted to `nonprod` | `prod`, and `LBL-001` / `LBL-002` normalization (`REQ-1..6`, `GR-1..3`).
 - **[`ADR-SVC-001`](https://github.com/vaishnavi4068/ssp-doc/blob/main/adr/endpoint-service/ADR-SVC-001-first-vertical-slice-gcs-bucket.md):** First Vertical Slice — GCS Bucket (`gcs_bucket`) End-to-End and Guardrails — `GCS-UBLA-001` (`uniform_bucket_level_access = true`), `GCS-PAP-001` (`public_access_prevention = "enforced"`), `GCS-ENC-001/002` (`kms_key_name` in `us-east1`), `GCS-RET-001` (`retention_days >= 90` when `versioning == false`), `GCS-RET-003` (`retention_locked = false`), `GCS-SDP-001` (`soft_delete_retention_days = 7`), `GCS-DEL-001` (`force_destroy = false`), `PRQ-001` (`ad_group`), `PRQ-002` (`vpc_sc_ingress`), optional `lifecycle_rules` validation (default `[]`), and IAM principal/role allowlist (`REQ-1..6`, `GR-1..4`).
 - **[`ADR-GLB-002`](https://github.com/vaishnavi4068/ssp-doc/blob/main/adr/global/ADR-GLB-002-languages-and-technology-stack.md), [`ADR-GLB-003`](https://github.com/vaishnavi4068/ssp-doc/blob/main/adr/global/ADR-GLB-003-four-state-model.md), [`ADR-GLB-004`](https://github.com/vaishnavi4068/ssp-doc/blob/main/adr/global/ADR-GLB-004-data-model-and-database.md), [`ADR-GLB-009`](https://github.com/vaishnavi4068/ssp-doc/blob/main/adr/global/ADR-GLB-009-resource-kind-registry.md):** `OPA v0.69+`, `Conftest v0.56+`, `idp.policy_evaluation` schema, `opa_package` per `idp.resource_kind`.
-- **[`ADR-BP-001`](https://github.com/vaishnavi4068/ssp-doc/blob/main/adr/business-process/ADR-BP-001-ownership-map-and-governance.md), [`ADR-BP-003`](https://github.com/vaishnavi4068/ssp-doc/blob/main/adr/business-process/ADR-BP-003-roles-and-approver-governance.md), [`ADR-CLD-GCP-001`](https://github.com/vaishnavi4068/ssp-doc/blob/main/adr/per-cloud/gcp/ADR-CLD-GCP-001-runtime-platform-gke-and-temporal.md), [`ADR-AUT-001..003`](https://github.com/vaishnavi4068/ssp-doc/blob/main/adr/automation/ADR-AUT-001-terraform-execution-k8s-job.md):** Non-bypassable operations, IAM principal restrictions (`group:` and `serviceAccount:` only), GKE `md-dev` `spp-pool` placement, and `stage = 'plan'` verification (`INV-4`).
+- **[`ADR-BP-001`](https://github.com/vaishnavi4068/ssp-doc/blob/main/adr/business-process/ADR-BP-001-ownership-map-and-governance.md), [`ADR-BP-003`](https://github.com/vaishnavi4068/ssp-doc/blob/main/adr/business-process/ADR-BP-003-roles-and-approver-governance.md), [`ADR-CLD-GCP-001`](https://github.com/vaishnavi4068/ssp-doc/blob/main/adr/per-cloud/gcp/ADR-CLD-GCP-001-runtime-platform-gke-and-temporal.md), [`ADR-AUT-001..003`](https://github.com/vaishnavi4068/ssp-doc/blob/main/adr/automation/ADR-AUT-001-terraform-execution-k8s-job.md):** Non-bypassable operations, IAM principal restrictions (`group:` and `serviceAccount:` only), SPP GKE cluster `spp-pool` placement, and `stage = 'plan'` verification (`INV-4`).
 
 ### Governing Specifications (`ssp-doc/specs/`)
 - **[`specs/naming/naming-spec.json`](https://github.com/vaishnavi4068/ssp-doc/blob/main/specs/naming/naming-spec.json):** Naming rules, forbidden prefixes/substrings, label normalization rules, and test vectors.
@@ -73,8 +73,8 @@ Deploy a plain **Open Policy Agent (OPA) server `Deployment` (NOT OPA Gatekeeper
 
 ## Scope & Implementation Requirements
 
-1. **Plain OPA Server Deployment on GKE `md-dev` (NOT Gatekeeper):**
-   - Deploy a plain **OPA server (`openpolicyagent/opa:0.69.0+`) `Deployment`** (explicitly **NOT** Kubernetes Gatekeeper / admission webhook) in its own dedicated Kubernetes namespace on GKE `md-dev` (e.g., `spp-policy`; exact namespace name `TODO` if overridden by operator), scheduled onto `spp-pool` (`nodeSelector: workload=spp`, toleration `dedicated=spp:NoSchedule`).
+1. **Plain OPA Server Deployment on SPP GKE cluster (NOT Gatekeeper):**
+   - Deploy a plain **OPA server (`openpolicyagent/opa:0.69.0+`) `Deployment`** (explicitly **NOT** Kubernetes Gatekeeper / admission webhook) in its own dedicated Kubernetes namespace on the SPP GKE cluster (e.g., `spp-policy`; exact namespace name `TODO` if overridden by operator), scheduled onto `spp-pool` (`nodeSelector: workload=spp`, toleration `dedicated=spp:NoSchedule`).
    - Expose OPA **internally only** via a ClusterIP `Service` (`:8181`) with a Kubernetes `NetworkPolicy` permitting ingress on port `8181` **only** from `ssp-cp` and `ssp-workers` in namespace `spp-platform` (zero public ingress).
    - Configure OPA to load versioned Rego bundles (recording `bundle_revision` in `idp.policy_evaluation`) from the policy repository / GCS bundle source (`TODO` bundle URL/repo ref).
 2. **Three-Stage Policy Evaluation & `idp.policy_evaluation` Persistence (`ADR-GLB-007`):**
@@ -117,14 +117,14 @@ Deploy a plain **Open Policy Agent (OPA) server `Deployment` (NOT OPA Gatekeeper
    - `environmentsubtype` is present or any of the 8 mandatory labels is missing,
    - `default_kms_key_name` is missing or not in `locations/us-east1`, or
    - any resource action in `resource_changes` includes `"delete"` without an approved delete request.
-4. Kubernetes manifests deploy a plain OPA server `Deployment` (not Gatekeeper) with internal-only ClusterIP `Service` and `NetworkPolicy` on GKE `md-dev` (`spp-pool`).
+4. Kubernetes manifests deploy a plain OPA server `Deployment` (not Gatekeeper) with internal-only ClusterIP `Service` and `NetworkPolicy` on the SPP GKE cluster (`spp-pool`).
 
 ## Dependencies & Blockers
 
 - **Depends On:** `WI-001` (`ssp-cp` `idp.policy_evaluation` & `idp.approval` store), `WI-002` (`ssp-workers` `tf-plan-<20hex>` runner Job).
 - **External Blockers (`TODO`):**
-  - **`BLK-001`:** GitHub App `spp-factory` credentials (`GITHUB_APP_ID`: `TODO`, `GITHUB_APP_INSTALLATION_ID`: `TODO`, key in Secret Manager `spp-factory-github-app-key` in `microdrive-dev`: `TODO`).
-  - **`BLK-002`:** Real KMS key URI in `us-east1` (`projects/microdrive-dev/locations/us-east1/keyRings/<TODO>/cryptoKeys/<TODO>`) from user for live `GCS-ENC-001` lookup in `microdrive-dev`.
+  - **`BLK-001`:** GitHub App `spp-factory` credentials (`GITHUB_APP_ID`: `TODO`, `GITHUB_APP_INSTALLATION_ID`: `TODO`, key in Secret Manager `spp-factory-github-app-key` in `<spp-factory-host-project-id>`: `TODO`).
+  - **`BLK-002`:** Real KMS key URI in `us-east1` (`projects/<spp-factory-host-project-id>/locations/us-east1/keyRings/<TODO>/cryptoKeys/<TODO>`) from user for live `GCS-ENC-001` lookup in `<spp-factory-host-project-id>`.
 
 ## Factory Stations & Role Skills (`spp-factory-foundation`)
 

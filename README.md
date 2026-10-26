@@ -21,15 +21,15 @@ Python FastAPI Control Plane API (`ssp-cp`) and Open Policy Agent (`OPA`) policy
    - Clean-slate Rego (`import rego.v1`) packages `idp.common`, `idp.naming`, `idp.labels`, and `idp.gcp.gcs_bucket`:
      - Naming rules (`GCS-NAME-001..003`, `NAM-APM-001` `^APM\d{5}$`, `NAM-RSV-001`, `NAM-IMM-001`, `NAM-LEG-001`, `SPN-NAME-001..002`).
      - 8 mandatory labels (`sppappid`, `costcenter`, `environmenttype`, `primarylob`, `datasensitivity`, `owner`, `provisionedby`, `idp_resource_id`) with `environmentsubtype` dropped/forbidden and `environmenttype` restricted to `nonprod` | `prod` (`LBL-001`, `LBL-002`).
-     - GCS guardrails (`GCS-UBLA-001`, `GCS-PAP-001`, `GCS-ENC-001` using CMEK key `projects/microdrive-dev/locations/us-east1/keyRings/spp-keyring/cryptoKeys/spp-gcs-cmek`, `GCS-RET-001`, `GCS-RET-003`, `GCS-SDP-001`, `GCS-DEL-001`, `PRQ-001..002`, `us-east1` only, lifecycle default `[]`).
+     - GCS guardrails (`GCS-UBLA-001`, `GCS-PAP-001`, `GCS-ENC-001` using CMEK key `projects/<spp-factory-host-project-id>/locations/us-east1/keyRings/spp-keyring/cryptoKeys/spp-gcs-cmek`, `GCS-RET-001`, `GCS-RET-003`, `GCS-SDP-001`, `GCS-DEL-001`, `PRQ-001..002`, `us-east1` only, lifecycle default `[]`).
    - Standalone plain OPA server `Deployment` manifest in namespace `spp-policy` (`deploy/k8s/opa-deployment.yaml` and Helm template `deploy/helm/spp-cp/templates/opa.yaml`) with internal-only ClusterIP `Service` (`:8181`) and `NetworkPolicy`.
 
 4. **Build & Deployment (`Dockerfile`, `cloudbuild.yaml`, `deploy/helm/spp-cp/`):**
-   - `cloudbuild.yaml` builds and pushes `us-east1-docker.pkg.dev/microdrive-dev/spp/spp-cp:<sha>`.
+   - `cloudbuild.yaml` builds and pushes `us-east1-docker.pkg.dev/<spp-factory-host-project-id>/spp/spp-cp:<sha>`.
    - Helm chart `deploy/helm/spp-cp` targets namespace `spp-platform` (internal only, scheduled on `spp-pool` with `nodeSelector: workload=spp` and toleration `dedicated=spp:NoSchedule`).
    - **Workload Identity Service Accounts (`deploy/helm/spp-cp/values.yaml`):**
-     - `serviceAccounts.runner`: KSA `spp-tf-runner` bound to `spp-deploy@microdrive-dev.iam.gserviceaccount.com`.
-     - `serviceAccounts.cp`: KSA `spp-cp` bound to `spp-deploy@microdrive-dev.iam.gserviceaccount.com` for MVP (**Note:** `spp-cp` should be migrated to its own dedicated least-privilege GCP Service Account post-MVP).
+     - `serviceAccounts.runner`: KSA `spp-tf-runner` bound to `spp-deploy@<spp-factory-host-project-id>.iam.gserviceaccount.com`.
+     - `serviceAccounts.cp`: KSA `spp-cp` bound to `spp-deploy@<spp-factory-host-project-id>.iam.gserviceaccount.com` for MVP (**Note:** `spp-cp` should be migrated to its own dedicated least-privilege GCP Service Account post-MVP).
 
 ## Running Tests Locally
 
