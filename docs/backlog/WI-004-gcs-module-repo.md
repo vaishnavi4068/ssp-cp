@@ -31,7 +31,7 @@ depends_on:
 blockers:
   - BLK-001 (GitHub App spp-factory credentials + creation of repo ssp-module-gcs-bucket)
   - BLK-002 (KMS key URI in us-east1: TODO from user)
-  - BLK-003 (Runner GCP service account email in microdrive-dev: TODO)
+  - BLK-003 (Runner GCP service account email in <spp-factory-host-project-id>: TODO)
 factory_stations:
   - impact (requirements-impact)
   - plan (change-plan)
@@ -58,7 +58,7 @@ Create and implement the **`ssp-module-gcs-bucket`** repository (scaffolded from
 ### Governing ADRs
 - **[`ADR-SVC-001`](https://github.com/vaishnavi4068/ssp-doc/blob/main/adr/endpoint-service/ADR-SVC-001-first-vertical-slice-gcs-bucket.md):** First Vertical Slice — GCS Bucket (`gcs_bucket`) End-to-End and Guardrails — Complete four-gate contract, `GCS-UBLA-001` (`uniform_bucket_level_access = true`), `GCS-PAP-001` (`public_access_prevention = "enforced"`), `GCS-ENC-001/002` (CMEK key in `locations/us-east1`), `GCS-RET-001` (`retention_days = 90` -> `retention_period = 7776000` seconds when `versioning == false`), `GCS-RET-003` (`retention_locked = false` -> `is_locked = false`), `GCS-SDP-001` (`soft_delete_retention_days = 7` -> `retention_duration_seconds = 604800` seconds), `GCS-DEL-001` (`force_destroy = false`), `autoclass = false`, optional user-configurable `lifecycle_rules` (default `[]`), authoritative per-role `iam_bindings` (`google_storage_bucket_iam_binding`), and `cloud_resource_id = "projects/_/buckets/<name>"` (`REQ-1..6`, `GR-1..4`).
 - **[`ADR-GLB-001`](https://github.com/vaishnavi4068/ssp-doc/blob/main/adr/global/ADR-GLB-001-global-architecture-overview.md) & [`ADR-GLB-002`](https://github.com/vaishnavi4068/ssp-doc/blob/main/adr/global/ADR-GLB-002-languages-and-technology-stack.md):** Terraform `>= 1.10.0`, `hashicorp/google` provider, offline `terraform test` with `mock_provider "google"`, `tfsec` (`ADR-GLB-002 REQ-4`).
-- **[`ADR-GLB-003`](https://github.com/vaishnavi4068/ssp-doc/blob/main/adr/global/ADR-GLB-003-four-state-model.md) & [`ADR-GLB-004`](https://github.com/vaishnavi4068/ssp-doc/blob/main/adr/global/ADR-GLB-004-data-model-and-database.md):** Composed project-level `terraform.tfvars.json` (`gcs_buckets` map) in `gs://microdrive-dev-spp-tfstate/projects/<project_id>/expected/rev-NNNNNN/`.
+- **[`ADR-GLB-003`](https://github.com/vaishnavi4068/ssp-doc/blob/main/adr/global/ADR-GLB-003-four-state-model.md) & [`ADR-GLB-004`](https://github.com/vaishnavi4068/ssp-doc/blob/main/adr/global/ADR-GLB-004-data-model-and-database.md):** Composed project-level `terraform.tfvars.json` (`gcs_buckets` map) in `gs://<spp-factory-host-project-id>-spp-tfstate/projects/<project_id>/expected/rev-NNNNNN/`.
 - **[`ADR-GLB-005`](https://github.com/vaishnavi4068/ssp-doc/blob/main/adr/global/ADR-GLB-005-identity-and-authentication.md):** Ambient provider credentials via per-project SA impersonation; zero hardcoded credentials or keys.
 - **[`ADR-GLB-006`](https://github.com/vaishnavi4068/ssp-doc/blob/main/adr/global/ADR-GLB-006-naming-and-labeling-conventions.md) & [`ADR-GLB-008`](https://github.com/vaishnavi4068/ssp-doc/blob/main/adr/global/ADR-GLB-008-label-and-tag-standard.md):** Bucket naming `{lob}-{env}-{app}-{purpose}-{suffix}` (`GCS-NAME-001..003`, `env` in `nonprod`|`prod`) and **8 mandatory labels** (`sppappid`, `costcenter`, `environmenttype`, `primarylob`, `datasensitivity`, `owner`, `provisionedby`, `idp_resource_id`; no `environmentsubtype`).
 - **[`ADR-GLB-007`](https://github.com/vaishnavi4068/ssp-doc/blob/main/adr/global/ADR-GLB-007-governance-gates-and-policy-rego.md) & [`ADR-GLB-009`](https://github.com/vaishnavi4068/ssp-doc/blob/main/adr/global/ADR-GLB-009-resource-kind-registry.md):** `idp.resource_kind` entry for `gcs_bucket` (`drift_ignore_paths = ARRAY['/force_destroy']`, `approval_gate_key = 'gcs_bucket_owner'`).
@@ -82,7 +82,7 @@ Create and implement the **`ssp-module-gcs-bucket`** repository (scaffolded from
      - `public_access_prevention` (`string`, default `"enforced"`, variable validation enforcing `"enforced"`, `GCS-PAP-001`)
      - `versioning` (`bool`, default `false`)
      - `autoclass` (`bool`, default `false`)
-     - `default_kms_key_name` (`string`, required non-empty CMEK CryptoKey ID in `locations/us-east1`, `GCS-ENC-001`; example fixtures use `projects/microdrive-dev/locations/us-east1/keyRings/<TODO>/cryptoKeys/<TODO>` or `projects/<lob>-kms-nonprod/locations/us-east1/keyRings/<lob>-nonprod-use1/cryptoKeys/gcs-default`)
+     - `default_kms_key_name` (`string`, required non-empty CMEK CryptoKey ID in `locations/us-east1`, `GCS-ENC-001`; example fixtures use `projects/<spp-factory-host-project-id>/locations/us-east1/keyRings/<TODO>/cryptoKeys/<TODO>` or `projects/<lob>-kms-nonprod/locations/us-east1/keyRings/<lob>-nonprod-use1/cryptoKeys/gcs-default`)
      - `retention_policy` (`object({ retention_period = number, is_locked = optional(bool, false) })`, where `retention_period >= 7776000` [90 days] when `versioning == false`, and **`is_locked` defaults to `false`** per `GCS-RET-003`)
      - `soft_delete_policy` (`object({ retention_duration_seconds = number })`, default `604800` [7 days], `GCS-SDP-001`)
      - `lifecycle_rules` (`list(object(...))`, **default `[]`** per user override; supports optional user-configured `Delete` and `SetStorageClass` rules)
@@ -109,15 +109,15 @@ Create and implement the **`ssp-module-gcs-bucket`** repository (scaffolded from
    - Stage 6: `terraform fmt -check`, `terraform init -backend=false`, `terraform validate`, and `terraform test` (`mock_provider "google"`) pass with zero cloud credentials.
    - Stage 7: `tfsec` reports 0 critical/high/medium security findings.
 2. Variable validations and Rego policies reject `location != "us-east1"`, `force_destroy == true`, `retention_locked == true` (unless explicitly unlocked by a records-management rule), `environmentsubtype` label, or `user:`/`allUsers`/`allAuthenticatedUsers` IAM members.
-3. End-to-end headless API test (with `WI-001..003`) provisions a `gcs_bucket` in `microdrive-dev` (`us-east1`) once blockers `BLK-002` (KMS key URI) and `BLK-003` (runner SA) are supplied, writing `Expected` and `Observed` state to `gs://microdrive-dev-spp-tfstate`.
+3. End-to-end headless API test (with `WI-001..003`) provisions a `gcs_bucket` in `<spp-factory-host-project-id>` (`us-east1`) once blockers `BLK-002` (KMS key URI) and `BLK-003` (runner SA) are supplied, writing `Expected` and `Observed` state to `gs://<spp-factory-host-project-id>-spp-tfstate`.
 
 ## Dependencies & Blockers
 
 - **Depends On:** `WI-001` (`ssp-cp`), `WI-002` (`ssp-workers`), `WI-003` (OPA/Conftest policy gates).
 - **External Blockers (`TODO`):**
   - **`BLK-001`:** GitHub App `spp-factory` credentials (`GITHUB_APP_ID`: `TODO`, `GITHUB_APP_INSTALLATION_ID`: `TODO`, key in Secret Manager `spp-factory-github-app-key`: `TODO`) and creation of repository `github.com/vaishnavi4068/ssp-module-gcs-bucket`.
-  - **`BLK-002`:** Cloud KMS CMEK key URI in `us-east1` (`projects/microdrive-dev/locations/us-east1/keyRings/<TODO>/cryptoKeys/<TODO>`) from user.
-  - **`BLK-003`:** Runner GCP Service Account email (`<TODO-runner-sa>@microdrive-dev.iam.gserviceaccount.com`) from user.
+  - **`BLK-002`:** Cloud KMS CMEK key URI in `us-east1` (`projects/<spp-factory-host-project-id>/locations/us-east1/keyRings/<TODO>/cryptoKeys/<TODO>`) from user.
+  - **`BLK-003`:** Runner GCP Service Account email (`<TODO-runner-sa>@<spp-factory-host-project-id>.iam.gserviceaccount.com`) from user.
 
 ## Factory Stations & Role Skills (`spp-factory-foundation`)
 

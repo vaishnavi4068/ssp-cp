@@ -39,7 +39,7 @@ depends_on:
 blockers:
   - BLK-001 (GitHub App spp-factory credentials for live factory PR push)
   - BLK-002 (KMS key URI in us-east1: TODO from user)
-  - BLK-003 (Runner GCP service account email in microdrive-dev: TODO)
+  - BLK-003 (Runner GCP service account email in <spp-factory-host-project-id>: TODO)
 factory_stations:
   - impact (requirements-impact)
   - plan (change-plan)
@@ -95,7 +95,7 @@ Implement the **`ssp-module-spanner`** repository (`modules/instance` for `spann
    - Author `schemas/spanner.schema.json` (closing the `[NOT CAPTURED]` gap noted in `ADR-SVC-002 OQ-3`, including `if/then` edition and tier rules) and Rego packages `idp.gcp.spanner_instance` and `idp.gcp.spanner_database` with unit tests (`*_test.rego`).
    - Enforce `SPN-NAME-001..003`, `SPN-CFG-001`, `SPN-EDT-001/002`, `SPN-BKP-001/002`, `SPN-DEL-001/002`, `SPN-ENC-001`, `SPN-IAM-001` (denying `roles/spanner.databaseReader` on `spanner_instance` when `metadata.tenancy == "shared"`), `LBL-001/002`, and `PRQ-003/004`.
 3. **Pipeline Reuse Verification (`ssp-cp` & `ssp-workers`):**
-   - Verify that submitting the composite payload in `specs/examples/spanner.gates.json` creates two linked `idp.request` rows (`source_pointer = "/resources/0"` for `spanner_instance` and `"/resources/1"` for `spanner_database` with `parent_resource_id` pointing to the instance), routes through `spanner_data_owner` (skipping `dbaas_reviewer` for Tier 2 `nonprod` and requiring `dbaas_reviewer` for Tier 1 or `prod`), composes `rev-000002` in `gs://microdrive-dev-spp-tfstate/projects/<project_id>/expected/rev-000002/terraform.tfvars.json` alongside existing `gcs_buckets` (`expected_revision_member.change = 'unchanged'` for the bucket and `'added'` for the Spanner instance and database), and executes `tf-plan-<20hex>` and `tf-apply-<20hex>` in `spp-platform` with zero schema or reconciler code changes.
+   - Verify that submitting the composite payload in `specs/examples/spanner.gates.json` creates two linked `idp.request` rows (`source_pointer = "/resources/0"` for `spanner_instance` and `"/resources/1"` for `spanner_database` with `parent_resource_id` pointing to the instance), routes through `spanner_data_owner` (skipping `dbaas_reviewer` for Tier 2 `nonprod` and requiring `dbaas_reviewer` for Tier 1 or `prod`), composes `rev-000002` in `gs://<spp-factory-host-project-id>-spp-tfstate/projects/<project_id>/expected/rev-000002/terraform.tfvars.json` alongside existing `gcs_buckets` (`expected_revision_member.change = 'unchanged'` for the bucket and `'added'` for the Spanner instance and database), and executes `tf-plan-<20hex>` and `tf-apply-<20hex>` in `spp-platform` with zero schema or reconciler code changes.
 
 ## Acceptance Criteria
 
@@ -113,9 +113,9 @@ Implement the **`ssp-module-spanner`** repository (`modules/instance` for `spann
 
 - **Depends On:** `WI-001` (`ssp-cp`), `WI-002` (`ssp-workers`), `WI-003` (OPA/Conftest policy gates), `WI-004` (`ssp-module-gcs-bucket`), `WI-005` (Drift job).
 - **External Blockers (`TODO`):**
-  - **`BLK-001`:** GitHub App `spp-factory` credentials (`GITHUB_APP_ID`: `TODO`, `GITHUB_APP_INSTALLATION_ID`: `TODO`, key in Secret Manager `spp-factory-github-app-key` in `microdrive-dev`: `TODO`).
-  - **`BLK-002`:** Cloud KMS CMEK key URI in `us-east1` (`projects/microdrive-dev/locations/us-east1/keyRings/<TODO>/cryptoKeys/<TODO>`) from user.
-  - **`BLK-003`:** Runner GCP Service Account email (`<TODO-runner-sa>@microdrive-dev.iam.gserviceaccount.com`) from user.
+  - **`BLK-001`:** GitHub App `spp-factory` credentials (`GITHUB_APP_ID`: `TODO`, `GITHUB_APP_INSTALLATION_ID`: `TODO`, key in Secret Manager `spp-factory-github-app-key` in `<spp-factory-host-project-id>`: `TODO`).
+  - **`BLK-002`:** Cloud KMS CMEK key URI in `us-east1` (`projects/<spp-factory-host-project-id>/locations/us-east1/keyRings/<TODO>/cryptoKeys/<TODO>`) from user.
+  - **`BLK-003`:** Runner GCP Service Account email (`<TODO-runner-sa>@<spp-factory-host-project-id>.iam.gserviceaccount.com`) from user.
 
 ## Factory Stations & Role Skills (`spp-factory-foundation`)
 
