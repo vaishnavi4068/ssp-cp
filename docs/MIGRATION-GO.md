@@ -29,7 +29,7 @@ SSP_OPA_SKIP=true go run ./cmd/api
 | Policy evaluation rows | `opa_client.evaluate_and_record` | **Next:** insert `idp.policy_evaluation` |
 | Lifecycle tasks | materialized on approve | **Next:** `idp.lifecycle_task` inserts |
 | `/readyz` DB check | Alembic + `resource_kind` probe | **Next:** wire in `internal/api/server.go` |
-| Retire FastAPI | `app/` on `main` | Delete `app/` when this branch merges |
+| Retire FastAPI | `app/` on `main` | **Removed** — Python `app/`, Alembic, and pytest suites deleted; use Go only |
 
 ## Workers
 

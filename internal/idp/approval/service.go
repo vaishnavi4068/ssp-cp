@@ -143,20 +143,7 @@ func (s *Service) RecordDecision(ctx context.Context, approvalID string, in Deci
 		"cost_center_validated": true,
 		"resolved_at": now.Format(time.RFC3339),
 	}
-	if req.Kind == "gcs_bucket" {
-		spec, _ := approvedDoc["spec"].(map[string]any)
-		kms := opaRes.ResolvedKMSKey
-		if kms == "" {
-			kms = envOr("SSP_DEFAULT_KMS_KEY", "projects/example/locations/us-east1/keyRings/example/cryptoKeys/example")
-		}
-		spec["retention_days"] = 90
-		spec["retention_locked"] = false
-		spec["uniform_bucket_level_access"] = true
-		spec["public_access_prevention"] = "enforced"
-		spec["kms_key_name"] = kms
-		spec["soft_delete_retention_days"] = 7
-		spec["force_destroy"] = false
-	}
+	applyApprovedGuardrails(req.Kind, approvedDoc, opaRes, appTier, env)
 	approvedDoc["prerequisites"] = opaRes.Prerequisites
 	approvedDoc["post_apply"] = []map[string]any{{"type": "notify_owner", "target": approvedMeta["owner"]}}
 	approvedDoc["approval"] = map[string]any{
@@ -256,6 +243,73 @@ func envOr(k, def string) string {
 		return v
 	}
 	return def
+}
+
+// applyApprovedGuardrails mirrors Python WI-007 approval defaults (PR #6) for GCS and Spanner kinds.
+func applyApprovedGuardrails(kind string, approvedDoc map[string]any, opa opa.Result, appTier, env string) {
+	spec, _ := approvedDoc["spec"].(map[string]any)
+	if spec == nil {
+		return
+	}
+	switch kind {
+	case "gcs_bucket":
+		kms := opa.ResolvedKMSKey
+		if kms == "" {
+			kms = envOr("SSP_DEFAULT_KMS_KEY", "projects/example/locations/us-east1/keyRings/example/cryptoKeys/example")
+		}
+		spec["retention_days"] = 90
+		spec["retention_locked"] = false
+		spec["uniform_bucket_level_access"] = true
+		spec["public_access_prevention"] = "enforced"
+		spec["kms_key_name"] = kms
+		spec["soft_delete_retention_days"] = 7
+		spec["force_destroy"] = false
+	case "spanner_instance":
+		setDefault(spec, "config", "regional-us-east1")
+		edition := "STANDARD"
+		if appTier == "1" || env == "prod" {
+			edition = "ENTERPRISE_PLUS"
+		}
+		setDefault(spec, "edition", edition)
+		setDefault(spec, "default_backup_schedule_type", "AUTOMATIC")
+		spec["force_destroy"] = false
+		compute, _ := spec["compute"].(map[string]any)
+		if compute == nil {
+			compute = map[string]any{}
+			spec["compute"] = compute
+		}
+		pu := 100
+		if appTier == "1" || env == "prod" {
+			pu = 1000
+		}
+		setDefaultInt(compute, "processing_units", pu)
+	case "spanner_database":
+		kms := opa.ResolvedKMSKey
+		if kms == "" {
+			kms = envOr("SSP_KMS_KEY_PLACEHOLDER", envOr("SSP_DEFAULT_KMS_KEY", "projects/example/locations/us-east1/keyRings/example/cryptoKeys/example"))
+		}
+		setDefault(spec, "database_dialect", "GOOGLE_STANDARD_SQL")
+		spec["encryption_config"] = map[string]any{"kms_key_names": []any{kms}}
+		spec["deletion_protection"] = true
+		spec["enable_drop_protection"] = true
+		if appTier == "1" || env == "prod" {
+			if _, ok := spec["backup_schedule"]; !ok {
+				spec["backup_schedule"] = nil
+			}
+		}
+	}
+}
+
+func setDefault(spec map[string]any, key, val string) {
+	if _, ok := spec[key]; !ok {
+		spec[key] = val
+	}
+}
+
+func setDefaultInt(spec map[string]any, key string, val int) {
+	if _, ok := spec[key]; !ok {
+		spec[key] = val
+	}
 }
 
 func errNotFound(err error) error {
