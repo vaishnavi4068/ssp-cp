@@ -11,6 +11,7 @@ import (
 	"github.com/vaishnavi4068/ssp-cp/internal/api/middleware"
 	"github.com/vaishnavi4068/ssp-cp/internal/idp/approval"
 	"github.com/vaishnavi4068/ssp-cp/internal/idp/intake"
+	"github.com/vaishnavi4068/ssp-cp/internal/idp/localauth"
 	"github.com/vaishnavi4068/ssp-cp/internal/idp/store"
 )
 
@@ -18,24 +19,29 @@ type Handler struct {
 	Backend  store.Backend
 	Intake   *intake.Service
 	Approval *approval.Service
+	Auth     *localauth.Service
 }
 
 func (h *Handler) Mount(r chi.Router) {
 	q := &QueryHandler{Backend: h.Backend, Intake: h.Intake}
+	authH := &AuthHandlers{Auth: h.Auth}
 	r.Route("/api/v1", func(r chi.Router) {
-		q.mount(r)
-		r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"status":"ok","api":"idp"}`))
+		r.Get("/healthz", h.healthz)
+		authH.mountPublic(r)
+		r.Group(func(r chi.Router) {
+			r.Use(h.requireActive)
+			authH.mountProtected(r)
+			q.mount(r)
+			r.Get("/kinds", h.listKinds)
+			r.Get("/audit", h.listAudit)
+			r.Post("/submissions", h.createSubmission)
+			r.Post("/submissions/spanner-stack", h.spanerStack)
+			r.Post("/requests", h.createSubmission)
+			r.Get("/requests/{requestID}", h.getRequest)
+			r.Post("/approvals/{approvalID}/decisions", h.recordDecision)
+			r.Post("/requests/{approvalID}/decisions", h.recordDecision)
+			r.Post("/requests/{approvalID}/approve", h.recordDecisionApprove)
 		})
-		r.Get("/kinds", h.listKinds)
-		r.Post("/submissions", h.createSubmission)
-		r.Post("/submissions/spanner-stack", h.spanerStack)
-		r.Post("/requests", h.createSubmission)
-		r.Get("/requests/{requestID}", h.getRequest)
-		r.Post("/approvals/{approvalID}/decisions", h.recordDecision)
-		r.Post("/requests/{approvalID}/decisions", h.recordDecision)
-		r.Post("/requests/{approvalID}/approve", h.recordDecisionApprove)
 	})
 }
 
@@ -96,6 +102,12 @@ func (h *Handler) recordDecision(w http.ResponseWriter, r *http.Request) {
 	if body.Status == "" {
 		body.Status = "approved"
 	}
+	if h.Auth != nil && !h.Auth.Config.AuthDisabled {
+		if _, err := h.Auth.RequireApprover(r.Context(), r); err != nil {
+			writeErr(w, http.StatusForbidden, err)
+			return
+		}
+	}
 	out, err := h.Approval.RecordDecision(r.Context(), approvalID, body, actor(r))
 	if err != nil {
 		writeErr(w, statusFromErr(err), err)
@@ -107,6 +119,12 @@ func (h *Handler) recordDecision(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) recordDecisionApprove(w http.ResponseWriter, r *http.Request) {
 	approvalID := chi.URLParam(r, "approvalID")
 	body := approval.DecisionInput{Status: "approved"}
+	if h.Auth != nil && !h.Auth.Config.AuthDisabled {
+		if _, err := h.Auth.RequireApprover(r.Context(), r); err != nil {
+			writeErr(w, http.StatusForbidden, err)
+			return
+		}
+	}
 	out, err := h.Approval.RecordDecision(r.Context(), approvalID, body, actor(r))
 	if err != nil {
 		writeErr(w, statusFromErr(err), err)
@@ -115,7 +133,34 @@ func (h *Handler) recordDecisionApprove(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, out)
 }
 
+func (h *Handler) healthz(w http.ResponseWriter, r *http.Request) {
+	payload := map[string]any{"status": "ok", "api": "idp"}
+	if h.Backend != nil {
+		if err := h.Backend.Ready(r.Context()); err != nil {
+			payload["catalog"] = "degraded"
+		} else {
+			payload["catalog"] = "ok"
+		}
+	}
+	writeJSON(w, http.StatusOK, payload)
+}
+
+func (h *Handler) listAudit(w http.ResponseWriter, r *http.Request) {
+	limit := 100
+	resourceID := r.URL.Query().Get("resource_id")
+	requestID := r.URL.Query().Get("request_id")
+	snap, err := h.Backend.ListAudit(r.Context(), resourceID, requestID, limit)
+	if err != nil {
+		writeErr(w, statusFromErr(err), err)
+		return
+	}
+	writeJSON(w, http.StatusOK, snap)
+}
+
 func actor(r *http.Request) string {
+	if u := userFromContext(r); u != nil {
+		return u.Username
+	}
 	if v := r.Header.Get("X-SSP-User"); v != "" {
 		return v
 	}

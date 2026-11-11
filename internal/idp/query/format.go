@@ -7,8 +7,8 @@ import (
 	"github.com/vaishnavi4068/ssp-cp/internal/idp/store"
 )
 
-// FormatRequestDetail matches Python get_request_detail shape (core fields).
-func FormatRequestDetail(b *store.RequestBundle) map[string]any {
+// FormatRequestDetail matches Python get_request_detail shape.
+func FormatRequestDetail(b *store.RequestBundle, evals []store.PolicyEvaluation, tasks []store.LifecycleTask) map[string]any {
 	if b == nil || b.Request == nil {
 		return nil
 	}
@@ -57,25 +57,59 @@ func FormatRequestDetail(b *store.RequestBundle) map[string]any {
 			}
 			decisions = append(decisions, row)
 		}
+		lt := make([]map[string]any, 0, len(tasks))
+		for _, t := range tasks {
+			var spec any
+			_ = json.Unmarshal(t.Spec, &spec)
+			lt = append(lt, map[string]any{
+				"task_id": t.ID, "phase": t.Phase, "task_type": t.TaskType, "task_key": t.TaskKey,
+				"status": t.Status, "spec": spec,
+			})
+		}
 		apr := map[string]any{
 			"approval_id": b.Approval.ID, "gate_key": b.Approval.GateKey, "gate_version": b.Approval.GateVersion,
 			"status": b.Approval.Status, "approved_spec": approved, "approved_spec_sha256": b.Approval.ApprovedSpecSHA256,
-			"decisions": decisions, "lifecycle_tasks": []any{},
+			"decisions": decisions, "lifecycle_tasks": lt,
 		}
 		if b.Approval.DecidedAt != nil {
 			apr["decided_at"] = b.Approval.DecidedAt.Format(time.RFC3339)
 		}
 		out["approval"] = apr
 	}
-	out["policy_evaluations"] = []any{}
+	peOut := make([]map[string]any, 0, len(evals))
+	for _, pe := range evals {
+		var viol, mut any
+		if len(pe.Violations) > 0 {
+			_ = json.Unmarshal(pe.Violations, &viol)
+		}
+		if len(pe.Mutations) > 0 {
+			_ = json.Unmarshal(pe.Mutations, &mut)
+		}
+		peOut = append(peOut, map[string]any{
+			"evaluation_id": pe.ID, "stage": pe.Stage, "opa_package": pe.OPAPackage,
+			"bundle_revision": pe.BundleRevision, "input_sha256": pe.InputSHA256,
+			"decision": pe.Decision, "violations": viol, "mutations": mut,
+			"evaluated_at": pe.EvaluatedAt.Format(time.RFC3339),
+		})
+	}
+	out["policy_evaluations"] = peOut
 	return out
 }
 
 // FormatKindRow maps registry row for GET /api/v1/kinds.
 func FormatKindRow(k store.ResourceKind) map[string]any {
-	return map[string]any{
-		"kind": k.Kind, "tfvars_collection": k.TFVarsCollection,
+	row := map[string]any{
+		"kind": k.Kind, "cloud": k.Cloud, "parent_kind": k.ParentKind,
+		"display_name": k.DisplayName, "schema_version": k.SchemaVersion,
+		"tfvars_collection": k.TFVarsCollection, "tf_address_template": k.TFAddressTemplate,
 		"opa_package": k.OPAPackage, "approval_gate_key": k.ApprovalGateKey,
-		"tf_address_template": k.TFAddressTemplate,
+		"enabled": k.Enabled,
 	}
+	if k.SchemaURI != "" {
+		row["schema_uri"] = k.SchemaURI
+	}
+	if k.TFModuleSource != "" {
+		row["tf_module_source"] = k.TFModuleSource
+	}
+	return row
 }

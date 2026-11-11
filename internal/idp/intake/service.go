@@ -162,6 +162,11 @@ func (s *Service) persistSubmission(ctx context.Context, doc map[string]any, in 
 		IdempotencyKey: coalesce(in.IdempotencyKey, subID), RawPayload: raw,
 		RawPayloadSHA256: hash.MustCanonicalSHA256(in), SubmittedAt: s.Store.Now(),
 	}
+	if in.IdempotencyKey != "" {
+		if existing, ok, err := s.Store.FindIdempotentRequest(ctx, apm, in.IdempotencyKey); ok && err == nil {
+			return s.GetRequest(ctx, existing)
+		}
+	}
 	su, err := s.Store.EnsureStateUnit(ctx, projectID, lob, env, apm)
 	if err != nil {
 		return nil, err
@@ -198,7 +203,7 @@ func (s *Service) createOne(ctx context.Context, doc map[string]any, su *store.S
 		"stage": "requested", "cloud": "gcp",
 		"resource_id": rid, "document": doc,
 	}
-	opaRes, err := s.OPA.Evaluate(ctx, kindMeta.OPAPackage, opaIn)
+	opaRes, err := opa.EvaluateAndRecord(ctx, s.OPA, s.Store, "requested", reqID, kindMeta.OPAPackage, opaIn)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -233,6 +238,15 @@ func (s *Service) createOne(ctx context.Context, doc map[string]any, su *store.S
 	}); err != nil {
 		return nil, nil, err
 	}
+	gateDetail, _ := json.Marshal(map[string]any{"decision": opaRes.Decision, "kind": kind})
+	_ = s.Store.RecordGateEvent(ctx, store.GateEvent{
+		StateUnitID: su.ID, ResourceID: rid, RequestID: reqID, Gate: "REQUESTED",
+		EventType: "resource_requested", Actor: requestedBy, Detail: gateDetail,
+	})
+	taskSpec, _ := json.Marshal(map[string]any{"kind": kind, "tf_address": tfAddr})
+	_ = s.Store.RecordLifecycleTask(ctx, store.LifecycleTask{
+		ResourceID: rid, ApprovalID: aprID, Phase: "0", TaskType: "approval", TaskKey: "gate_"+kindMeta.ApprovalGateKey, Spec: taskSpec,
+	})
 	return res, req, nil
 }
 
@@ -297,7 +311,12 @@ func (s *Service) GetRequest(ctx context.Context, id string) (map[string]any, er
 	if err != nil {
 		return nil, err
 	}
-	return query.FormatRequestDetail(bundle), nil
+	evals, _ := s.Store.ListPolicyEvaluations(ctx, id)
+	var tasks []store.LifecycleTask
+	if bundle.Approval != nil {
+		tasks, _ = s.Store.ListLifecycleTasks(ctx, bundle.Approval.ID)
+	}
+	return query.FormatRequestDetail(bundle, evals, tasks), nil
 }
 
 func coalesce(v, def string) string {

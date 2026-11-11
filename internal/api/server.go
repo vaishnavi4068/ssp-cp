@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/vaishnavi4068/ssp-cp/internal/api/handlers"
 	"github.com/vaishnavi4068/ssp-cp/internal/api/middleware"
 	"github.com/vaishnavi4068/ssp-cp/internal/idp"
+	"github.com/vaishnavi4068/ssp-cp/internal/idp/store"
 )
 
 // NewHandler returns the control-plane HTTP handler.
@@ -24,10 +26,9 @@ func NewHandler() http.Handler {
 	r.Use(middleware.Entitlement)
 	r.Use(middleware.Idempotency)
 	r.Use(middleware.RateLimit)
-	r.Get("/healthz", health)
-	r.Get("/readyz", health)
-
+	r.Get("/healthz", rootHealth)
 	idpStack := idp.NewStack()
+	r.Get("/readyz", readyHandler(idpStack.Backend))
 	idpStack.HTTP.Mount(r)
 
 	strict := gen.NewStrictHandlerWithOptions(handlers.New(), nil, gen.StrictHTTPServerOptions{
@@ -51,10 +52,26 @@ func NewHandler() http.Handler {
 	})
 }
 
-func health(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	if _, err := w.Write([]byte(`{"status":"ok"}`)); err != nil {
-		return
+func rootHealth(w http.ResponseWriter, r *http.Request) {
+	writeHealth(w, http.StatusOK, map[string]any{"status": "ok", "service": "ssp-cp"})
+}
+
+func readyHandler(b store.Backend) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if b == nil {
+			writeHealth(w, http.StatusServiceUnavailable, map[string]any{"status": "not_ready"})
+			return
+		}
+		if err := b.Ready(r.Context()); err != nil {
+			writeHealth(w, http.StatusServiceUnavailable, map[string]any{"status": "not_ready", "error": err.Error()})
+			return
+		}
+		writeHealth(w, http.StatusOK, map[string]any{"status": "ready"})
 	}
+}
+
+func writeHealth(w http.ResponseWriter, code int, payload map[string]any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	_ = json.NewEncoder(w).Encode(payload)
 }

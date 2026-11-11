@@ -21,6 +21,9 @@ type Memory struct {
 	Kinds        map[string]ResourceKind
 	Gates        map[string]GateConfig
 	Idempotency  map[string]string // apm+key -> request_id
+	policyEvals  map[string][]PolicyEvaluation
+	gateEvents   []GateEvent
+	lifecycleTasks map[string][]LifecycleTask
 }
 
 func NewMemory() *Memory {
@@ -42,20 +45,20 @@ func NewMemory() *Memory {
 
 func (m *Memory) seedKinds() {
 	m.Kinds["gcs_bucket"] = ResourceKind{
-		Kind: "gcs_bucket", TFVarsCollection: "gcs_buckets",
-		TFAddressTemplate: `module.gcs_bucket["{name}"]`,
-		OPAPackage: "idp.gcp.gcs_bucket", ApprovalGateKey: "gcs_bucket_owner",
+		Kind: "gcs_bucket", Cloud: "gcp", Enabled: true, DisplayName: "GCS Bucket",
+		TFVarsCollection: "gcs_buckets", TFAddressTemplate: `module.gcs_bucket["{name}"]`,
+		OPAPackage: "idp.gcp.gcs_bucket", ApprovalGateKey: "gcs_bucket_owner", SchemaVersion: "1.0.0",
 	}
 	m.Kinds["spanner_instance"] = ResourceKind{
-		Kind: "spanner_instance", TFVarsCollection: "spanner_instances",
-		TFAddressTemplate: `module.spanner_instance["{name}"]`,
-		OPAPackage: "idp.gcp.spanner_instance", ApprovalGateKey: "spanner_data_owner",
+		Kind: "spanner_instance", Cloud: "gcp", Enabled: true, DisplayName: "Spanner Instance",
+		TFVarsCollection: "spanner_instances", TFAddressTemplate: `module.spanner_instance["{name}"]`,
+		OPAPackage: "idp.gcp.spanner_instance", ApprovalGateKey: "spanner_data_owner", SchemaVersion: "1.0.0",
 	}
 	m.Kinds["spanner_database"] = ResourceKind{
-		Kind: "spanner_database", TFVarsCollection: "spanner_databases",
-		TFAddressTemplate: `module.spanner_database["{instance}/{name}"]`,
+		Kind: "spanner_database", Cloud: "gcp", Enabled: true, DisplayName: "Spanner Database",
+		TFVarsCollection: "spanner_databases", TFAddressTemplate: `module.spanner_database["{instance}/{name}"]`,
 		OPAPackage: "idp.gcp.spanner_database", ApprovalGateKey: "spanner_data_owner",
-		ParentKind: "spanner_instance",
+		ParentKind: "spanner_instance", SchemaVersion: "1.0.0",
 	}
 }
 
