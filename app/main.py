@@ -65,6 +65,7 @@ from .schemas import (
     UserProfileResponse,
 )
 from .services import get_request_detail, record_approval_decision, submit_resource_request
+from .spanner_intake import CompositeSpannerSubmission, submit_spanner_instance_with_databases
 from .temporal_bridge import TemporalBridge
 
 
@@ -461,6 +462,23 @@ def list_kinds(
 # ---------------------------------------------------------------------------
 # 3. Requests & Intake Submissions (`POST /api/v1/requests`, `GET /api/v1/requests/{id}`)
 # ---------------------------------------------------------------------------
+
+
+@app.post("/api/v1/submissions/spanner-stack", status_code=status.HTTP_201_CREATED)
+def create_spanner_stack(
+    payload: CompositeSpannerSubmission,
+    user: CpUser = Depends(require_active_user),
+    db: Session = Depends(get_db),
+    opa_client: OpaClient = Depends(get_opa_client),
+    settings: Settings = Depends(get_settings),
+) -> dict[str, Any]:
+    return submit_spanner_instance_with_databases(
+        db,
+        payload=payload,
+        actor=user,
+        opa_client=opa_client,
+        settings=settings,
+    )
 
 
 @app.post("/api/v1/requests", status_code=status.HTTP_201_CREATED)

@@ -704,6 +704,20 @@ async def record_approval_decision(
                 "force_destroy": False,
             }
         )
+    elif request_row.kind == "spanner_instance":
+        approved_doc["spec"].setdefault("config", "regional-us-east1")
+        approved_doc["spec"].setdefault("edition", "ENTERPRISE_PLUS" if app_tier == "1" or env == "prod" else "STANDARD")
+        approved_doc["spec"].setdefault("default_backup_schedule_type", "AUTOMATIC")
+        approved_doc["spec"]["force_destroy"] = False
+        compute = approved_doc["spec"].setdefault("compute", {})
+        compute.setdefault("processing_units", 1000 if app_tier == "1" or env == "prod" else 100)
+    elif request_row.kind == "spanner_database":
+        kms_key = opa_out.resolved_kms_key or cfg.kms_key_placeholder or cfg.default_kms_key_name
+        approved_doc["spec"].setdefault("database_dialect", "GOOGLE_STANDARD_SQL")
+        approved_doc["spec"]["encryption_config"] = {"kms_key_names": [kms_key]}
+        approved_doc["spec"]["deletion_protection"] = True
+        approved_doc["spec"]["enable_drop_protection"] = True
+        approved_doc["spec"].setdefault("backup_schedule", None if app_tier != "1" and env != "prod" else approved_doc["spec"].get("backup_schedule"))
 
     approved_doc["prerequisites"] = opa_out.prerequisites
     approved_doc["post_apply"] = [
