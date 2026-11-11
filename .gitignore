@@ -1,6 +1,19 @@
+<<<<<<< HEAD
 /bin/
 /dist/
 *.exe
 *.test
 *.out
 coverage.out
+=======
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+.env
+*.db
+*.sqlite
+>>>>>>> origin/main

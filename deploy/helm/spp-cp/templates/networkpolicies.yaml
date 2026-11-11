@@ -1,0 +1,74 @@
+---
+# 1. Isolate spp-platform (ssp-cp): allow internal LB / corporate CIDRs & in-namespace traffic;
+#    explicitly deny pod-to-pod traffic from spp-factory (`ADR-CLD-GCP-001 REQ-4`).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: spp-cp-networkpolicy
+  namespace: {{ .Values.global.namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: spp-cp
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.global.namespace }}
+        - ipBlock:
+            cidr: 10.0.0.0/8
+        - ipBlock:
+            cidr: 172.16.0.0/12
+        - ipBlock:
+            cidr: 192.168.0.0/16
+      ports:
+        - protocol: TCP
+          port: 8000
+  egress:
+    # AlloyDB private IP (10.80.140.2:5432)
+    - to:
+        - ipBlock:
+            cidr: "{{ .Values.alloydb.host }}/32"
+      ports:
+        - protocol: TCP
+          port: {{ .Values.alloydb.port }}
+    # Temporal frontend in spp-temporal:7233
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: spp-temporal
+      ports:
+        - protocol: TCP
+          port: 7233
+    # Internal OPA Policy Server in spp-policy:8181
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.opa.namespace }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.opa.port }}
+    # GKE Workload Identity metadata server
+    - to:
+        - ipBlock:
+            cidr: 169.254.169.254/32
+      ports:
+        - protocol: TCP
+          port: 80
+    - to:
+        - ipBlock:
+            cidr: 169.254.169.252/32
+      ports:
+        - protocol: TCP
+          port: 988
+    # DNS & GCP APIs
+    - ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+        - protocol: TCP
+          port: 443

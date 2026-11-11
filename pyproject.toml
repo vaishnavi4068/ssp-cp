@@ -1,0 +1,16 @@
+[project]
+name = "spp-cp"
+version = "1.0.0"
+description = "Self-Service Provisioning Platform (SPP) Control Plane API (WI-001 & WI-003)"
+requires-python = ">=3.11"
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,376 @@
+{
+  "_provenance": {
+    "status": "RECONSTRUCTED AND UNVERIFIED (~85% source line coverage)",
+    "source": "Sanitized hand transcription from 17 HEIC photographs (IMG_6593..6600, IMG_6602..6610; IMG_6601 missing) of examples/gcs_bucket.gates.json (~888 lines) from the design package 'IDP four-gate data model: GCS bucket and Spanner' (draft dated 21 Oct 2026).",
+    "overrides_applied": [
+      "GCP only; location is 'us-east1' (not 'US' multi-region; CMEK key in 'locations/us-east1').",
+      "Environments: only 'nonprod' and 'prod' (environmenttype='nonprod'); 'environmentsubtype' label is DROPPED everywhere.",
+      "Single state bucket: 'gs://microdrive-dev-spp-tfstate' keeping path layout 'projects/<project>/{expected/rev-N,logs,observed/scan-*,default.tfstate}'.",
+      "Terraform runner Kubernetes Jobs execute in namespace 'spp-platform' (not 'idp-runners').",
+      "Object lifecycle_rules: default is NONE ([]), exposed as optional user-configurable options on the gcs_bucket request.",
+      "Drift: alert-only (status='OPEN', severity='critical' for GCS-PAP-001; never auto-reapply)."
+    ]
+  },
+  "_about": "GCS bucket through the four gates (Requested -> Approved -> Expected -> Observed) and out-of-band drift detection.",
+  "submission": {
+    "table": "idp.submission",
+    "row": {
+      "submission_id": "b764125e-fcae-55bd-b6b7-10cf882fcc8d",
+      "channel": "api",
+      "source_ref": null,
+      "apm_id": "apm12345",
+      "submitted_by": "requester@example.com",
+      "idempotency_key": "api:b764125e-gcs-orders-landing",
+      "raw_payload_sha256": "<64-hex; Unverified (source gap): source hash invalidated by sanitization>",
+      "submitted_at": "2026-10-21T14:02:11Z",
+      "_value_normalization_note": "Intake normalizes raw input values before/during Requested mapping: data_sensitivity 'restrict' -> 'restricted', apm_id 'APM12345' -> 'apm12345', lob '<LOB>' -> '<lob>', environment 'dev' -> 'nonprod'."
+    }
+  },
+  "requested": {
+    "document": {
+      "api_version": "idp.spp/v1",
+      "kind": "gcs_bucket",
+      "action": "create",
+      "metadata": {
+        "apm_id": "apm12345",
+        "project_id": "<lob>-nonprod-orders-svc",
+        "environment": "nonprod",
+        "lob": "<lob>",
+        "data_sensitivity": "restricted",
+        "data_classification": "proprietary",
+        "owner": "bucket.owner@example.com",
+        "shared_mailbox": "<lob>-orders-team@example.com",
+        "requested_by": "requester@example.com",
+        "cost_center": "000000",
+        "tenancy": "dedicated",
+        "labels": {
+          "app": "orders"
+        },
+        "extensions": {
+          "<lob>": {
+            "<lob>ml_version": "1.5"
+          }
+        }
+      },
+      "spec": {
+        "name": "<lob>-nonprod-orders-landing-a1b2",
+        "location": "us-east1",
+        "storage_class": "STANDARD",
+        "versioning": false,
+        "lifecycle_rules": [],
+        "_lifecycle_rules_note": "Default is [] (NONE). Optional user-configurable lifecycle_rules (e.g. Delete after age_days, SetStorageClass after age_days, Delete noncurrent versions after num_newer_versions/days_since_noncurrent) may be specified at request time, validated by policy, and approved through the normal approval gate (replacing the source example's 365-day auto-delete).",
+        "access": [
+          {
+            "role": "roles/storage.objectAdmin",
+            "members": [
+              "serviceAccount:orders-pipeline@<lob>-nonprod-orders-svc.iam.gserviceaccount.com"
+            ],
+            "_source_gap": "Unverified (source gap): lines 145-149 partially captured in photo."
+          },
+          {
+            "role": "roles/storage.objectViewer",
+            "members": [
+              "group:gcp-<lob>-nonprod-orders-read@example.com"
+            ]
+          }
+        ],
+        "purpose": "Landing zone for order events"
+      }
+    },
+    "db": {
+      "table": "idp.request",
+      "row": {
+        "request_id": "22120aab-3834-51d3-b631-0f7d3c43f56e",
+        "submission_id": "b764125e-fcae-55bd-b6b7-10cf882fcc8d",
+        "resource_id": "9478bcfc-c2cf-583b-8bd8-096476647840",
+        "kind": "gcs_bucket",
+        "action": "create",
+        "schema_version": "1.0.0",
+        "requested_spec_sha256": "<64-hex; Unverified (source gap): source hash invalidated by sanitization>",
+        "source_pointer": "/resources/0",
+        "status": "APPROVED",
+        "temporal_workflow_id": "req-22120aab-3834-51d3-b631-0f7d3c43f56e",
+        "requested_by": "requester@example.com",
+        "submitted_at": "2026-10-21T14:02:11Z"
+      }
+    }
+  },
+  "approved": {
+    "document": {
+      "api_version": "idp.spp/v1",
+      "kind": "gcs_bucket",
+      "action": "create",
+      "metadata": {
+        "apm_id": "apm12345",
+        "project_id": "<lob>-nonprod-orders-svc",
+        "environment": "nonprod",
+        "lob": "<lob>",
+        "data_sensitivity": "restricted",
+        "data_classification": "proprietary",
+        "owner": "bucket.owner@example.com",
+        "shared_mailbox": "<lob>-orders-team@example.com",
+        "requested_by": "requester@example.com",
+        "cost_center": "000000",
+        "tenancy": "dedicated",
+        "labels": {
+          "app": "orders",
+          "costcenter": "000000",
+          "dataclassification": "proprietary",
+          "datasensitivity": "restricted",
+          "environmenttype": "nonprod",
+          "idp_resource_id": "9478bcfc-c2cf-583b-8bd8-096476647840",
+          "owner": "bucket_owner_example_com",
+          "primarylob": "<lob>",
+          "provisionedby": "idp",
+          "sharedemailaddress": "<lob>-orders-team_example_com",
+          "sppappid": "apm12345",
+          "tenancy": "dedicated"
+        },
+        "extensions": {
+          "<lob>": {
+            "<lob>ml_version": "1.5"
+          }
+        },
+        "resolved": {
+          "app_tier": "2",
+          "environment_type": "nonprod",
+          "vpc_sc_perimeter": "<lob>_nonprod_restricted_perimeter",
+          "cost_center_validated": true,
+          "resolved_at": "2026-10-21T14:02:13Z"
+        }
+      },
+      "spec": {
+        "name": "<lob>-nonprod-orders-landing-a1b2",
+        "location": "us-east1",
+        "storage_class": "STANDARD",
+        "versioning": false,
+        "lifecycle_rules": [],
+        "access": [
+          {
+            "role": "roles/storage.objectAdmin",
+            "members": [
+              "serviceAccount:orders-pipeline@<lob>-nonprod-orders-svc.iam.gserviceaccount.com"
+            ]
+          },
+          {
+            "role": "roles/storage.objectViewer",
+            "members": [
+              "group:gcp-<lob>-nonprod-orders-read@example.com"
+            ]
+          }
+        ],
+        "purpose": "Landing zone for order events",
+        "retention_days": 90,
+        "retention_locked": false,
+        "uniform_bucket_level_access": true,
+        "public_access_prevention": "enforced",
+        "kms_key_name": "projects/microdrive-dev/locations/us-east1/keyRings/spp-keyring/cryptoKeys/spp-gcs-cmek",
+        "soft_delete_retention_days": 7,
+        "force_destroy": false
+      },
+      "prerequisites": [
+        {
+          "type": "ad_group",
+          "target": "group:gcp-<lob>-nonprod-orders-read@example.com",
+          "rule_id": "PRQ-001"
+        },
+        {
+          "type": "vpc_sc_ingress",
+          "target": "group:gcp-<lob>-nonprod-orders-read@example.com",
+          "params": {
+            "perimeter": "<lob>_nonprod_restricted_perimeter"
+          },
+          "rule_id": "PRQ-002"
+        }
+      ],
+      "post_apply": [
+        {
+          "type": "notify_owner",
+          "target": "bucket.owner@example.com"
+        }
+      ],
+      "approval": {
+        "request_id": "22120aab-3834-51d3-b631-0f7d3c43f56e",
+        "requested_spec_sha256": "<64-hex; Unverified (source gap)>",
+        "policy_bundle_revision": "3f9a1c2",
+        "gate_key": "gcs_bucket_owner",
+        "decided_at": "2026-10-22T09:41:00Z",
+        "approvers": [
+          {
+            "approver_key": "bucket_owner",
+            "identity": "bucket.owner@example.com",
+            "status": "approved",
+            "responded_at": "2026-10-22T09:41:00Z"
+          }
+        ]
+      }
+    },
+    "db": {
+      "approval": {
+        "table": "idp.approval",
+        "row": {
+          "approval_id": "761d8bf8-d23e-5da3-8e52-02e6eb6c2afb",
+          "request_id": "22120aab-3834-51d3-b631-0f7d3c43f56e",
+          "resource_id": "9478bcfc-c2cf-583b-8bd8-096476647840",
+          "gate_key": "gcs_bucket_owner",
+          "gate_version": 1,
+          "status": "APPROVED",
+          "approved_spec_sha256": "<64-hex; Unverified (source gap)>",
+          "guardrail_trace": [
+            {
+              "rule_id": "GCS-UBLA-001",
+              "path": "/spec/uniform_bucket_level_access",
+              "from": null,
+              "to": true,
+              "reason": "Uniform bucket-level access is mandatory. Legacy form value 'false' was not carried [truncated in source]"
+            },
+            {
+              "rule_id": "GCS-PAP-001",
+              "path": "/spec/public_access_prevention",
+              "from": null,
+              "to": "enforced",
+              "reason": "Unverified (source gap): lines 332-335 [NOT CAPTURED] in photo; value 'enforced' confirmed from approved.document.spec.public_access_prevention."
+            },
+            {
+              "rule_id": "GCS-ENC-001",
+              "path": "/spec/kms_key_name",
+              "from": null,
+              "to": "projects/microdrive-dev/locations/us-east1/keyRings/spp-keyring/cryptoKeys/spp-gcs-cmek",
+              "reason": "CMEK resolved by (lob=<lob>, environment_type=nonprod, location=us-east1); key location 'us-east1' matches bucket [truncated in source; overridden from US to us-east1]"
+            },
+            {
+              "rule_id": "GCS-RET-001",
+              "path": "/spec/retention_days",
+              "from": null,
+              "to": 90,
+              "reason": "Retention floor for restricted data (illustrative value; set by the GCS ADR). Versioning stays off [truncated in source]"
+            },
+            {
+              "rule_id": "GCS-RET-003",
+              "path": "/spec/retention_locked",
+              "from": null,
+              "to": false,
+              "reason": "Locks are irreversible and only applied on an explicit records-management request."
+            },
+            {
+              "rule_id": "GCS-SDP-001",
+              "path": "/spec/soft_delete_retention_days",
+              "from": null,
+              "to": 7,
+              "reason": "Soft-delete window for accidental deletes."
+            },
+            {
+              "rule_id": "GCS-DEL-001",
+              "path": "/spec/force_destroy",
+              "from": null,
+              "to": false,
+              "reason": "The platform never force-destroys a bucket with objects in it."
+            },
+            {
+              "rule_id": "LBL-001",
+              "path": "/metadata/labels",
+              "from": {
+                "app": "orders"
+              },
+              "to": {
+                "app": "orders",
+                "costcenter": "000000",
+                "dataclassification": "proprietary",
+                "datasensitivity": "restricted",
+                "environmenttype": "nonprod",
+                "idp_resource_id": "9478bcfc-c2cf-583b-8bd8-096476647840",
+                "owner": "bucket_owner_example_com",
+                "primarylob": "<lob>",
+                "provisionedby": "idp",
+                "sharedemailaddress": "<lob>-orders-team_example_com",
+                "sppappid": "apm12345",
+                "tenancy": "dedicated"
+              },
+              "reason": "Mandatory labels merged with user labels; one key set for every kind."
+            },
+            {
+              "rule_id": "PRQ-001",
+              "path": "/prerequisites/0",
+              "from": null,
+              "to": "ad_group",
+              "reason": "The read group must exist before the IAM binding [truncated in source]"
+            },
+            {
+              "rule_id": "PRQ-002",
+              "path": "/prerequisites/1",
+              "from": null,
+              "to": "vpc_sc_ingress",
+              "reason": "Unverified (source gap): lines 384-428 [NOT CAPTURED] in photo; prerequisite vpc_sc_ingress with params.perimeter confirmed from approved.document.prerequisites."
+            }
+          ]
+        }
+      },
+      "lifecycle_tasks": [
+        {
+          "phase": "pre_apply",
+          "task_type": "ad_group",
+          "task_key": "ad_group:group:gcp-<lob>-nonprod-orders-read@example.com",
+          "status": "SUCCEEDED"
+        },
+        {
+          "phase": "pre_apply",
+          "task_type": "vpc_sc_ingress",
+          "task_key": "vpc_sc_ingress:group:gcp-<lob>-nonprod-orders-read@example.com",
+          "status": "SUCCEEDED"
+        },
+        {
+          "phase": "post_apply",
+          "task_type": "notify_owner",
+          "task_key": "notify_owner:bucket.owner@example.com",
+          "status": "SUCCEEDED"
+        }
+      ]
+    }
+  },
+  "expected": {
+    "tfvars_collection": "gcs_buckets",
+    "tfvars_key": "<lob>-nonprod-orders-landing-a1b2",
+    "entry": {
+      "project": "<lob>-nonprod-orders-svc",
+      "name": "<lob>-nonprod-orders-landing-a1b2",
+      "location": "us-east1",
+      "storage_class": "STANDARD",
+      "uniform_bucket_level_access": true,
+      "public_access_prevention": "enforced",
+      "versioning": false,
+      "autoclass": false,
+      "default_kms_key_name": "projects/microdrive-dev/locations/us-east1/keyRings/spp-keyring/cryptoKeys/spp-gcs-cmek",
+      "retention_policy": {
+        "retention_period": 7776000,
+        "is_locked": false
+      },
+      "soft_delete_policy": {
+        "retention_duration_seconds": 604800
+      },
+      "lifecycle_rules": [],
+      "labels": {
+        "app": "orders",
+        "costcenter": "000000",
+        "dataclassification": "proprietary",
+        "datasensitivity": "restricted",
+        "environmenttype": "nonprod",
+        "idp_resource_id": "9478bcfc-c2cf-583b-8bd8-096476647840",
+        "owner": "bucket_owner_example_com",
+        "primarylob": "<lob>",
+        "provisionedby": "idp",
+        "sharedemailaddress": "<lob>-orders-team_example_com",
+        "sppappid": "apm12345",
+        "tenancy": "dedicated"
+      },
+      "iam_bindings": {
+        "roles/storage.objectAdmin": [
+          "serviceAccount:orders-pipeline@<lob>-nonprod-orders-svc.iam.gserviceaccount.com"
+        ],
+        "roles/storage.objectViewer": [
+          "group:gcp-<lob>-nonprod-orders-read@example.com"
+        ]
+      },
+      "force_destroy": false
+    }
+  }
+}

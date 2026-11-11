@@ -1,0 +1,185 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spp-cp
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app.kubernetes.io/name: spp-cp
+    app.kubernetes.io/part-of: spp-platform
+spec:
+  replicas: {{ .Values.replicas.cp }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: spp-cp
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: spp-cp
+        app.kubernetes.io/part-of: spp-platform
+    spec:
+      serviceAccountName: {{ .Values.serviceAccounts.cp.name }}
+      nodeSelector:
+        {{- toYaml .Values.global.nodeSelector | nindent 8 }}
+      tolerations:
+        {{- toYaml .Values.global.tolerations | nindent 8 }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+      containers:
+        - name: spp-cp
+          image: "{{ .Values.images.registry }}/{{ .Values.images.repo }}:{{ .Values.images.tag }}"
+          imagePullPolicy: {{ .Values.images.pullPolicy }}
+          ports:
+            - containerPort: 8000
+              name: http
+          env:
+            - name: GCP_PROJECT_ID
+              value: {{ .Values.global.gcpProjectId | quote }}
+            - name: GKE_CLUSTER_NAME
+              value: {{ .Values.global.gkeClusterName | quote }}
+            - name: GCP_REGION
+              value: {{ .Values.global.gcpRegion | quote }}
+            - name: SPP_K8S_NAMESPACE
+              value: {{ .Values.global.namespace | quote }}
+            - name: ALLOYDB_INSTANCE_URI
+              value: {{ .Values.alloydb.instanceUri | quote }}
+            - name: ALLOYDB_HOST
+              value: {{ .Values.alloydb.host | quote }}
+            - name: ALLOYDB_PORT
+              value: {{ .Values.alloydb.port | quote }}
+            - name: ALLOYDB_DB
+              value: {{ .Values.alloydb.database | quote }}
+            - name: ALLOYDB_USER
+              value: {{ .Values.alloydb.username | quote }}
+            - name: ALLOYDB_SSLMODE
+              value: {{ .Values.alloydb.sslmode | quote }}
+            - name: ALLOYDB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.alloydb.passwordSecretName }}
+                  key: {{ .Values.alloydb.passwordSecretKey }}
+            - name: DATABASE_URL
+              value: "postgresql+psycopg2://{{ .Values.alloydb.username }}:$(ALLOYDB_PASSWORD)@{{ .Values.alloydb.host }}:{{ .Values.alloydb.port }}/{{ .Values.alloydb.database }}?sslmode={{ .Values.alloydb.sslmode }}"
+            - name: SPP_DEFAULT_KMS_KEY_NAME
+              value: {{ .Values.kms.defaultGcsKeyName | quote }}
+            - name: SPP_KMS_KEY_URI_OVERRIDE
+              value: {{ .Values.kms.defaultGcsKeyName | quote }}
+            - name: SPP_STATE_BUCKET
+              value: {{ .Values.stateBackend.bucket | quote }}
+            - name: SPP_RUNNER_SA_EMAIL
+              value: {{ .Values.serviceAccounts.runner.gsaEmail | quote }}
+            - name: TEMPORAL_ADDRESS
+              value: {{ .Values.temporal.address | quote }}
+            - name: TEMPORAL_NAMESPACE
+              value: {{ .Values.temporal.namespace | quote }}
+            - name: TEMPORAL_TASK_QUEUE
+              value: {{ .Values.temporal.taskQueue | quote }}
+            - name: TEMPORAL_GCS_WORKFLOW
+              value: {{ .Values.temporal.gcsWorkflow | quote }}
+            - name: OPA_URL
+              value: {{ .Values.opa.url | quote }}
+            - name: OPA_BUNDLE_REVISION
+              value: {{ .Values.opa.bundleRevision | quote }}
+            - name: SPP_CP_SESSION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.bootstrapSecretName }}
+                  key: spp-factory-session-key
+            - name: SPP_CP_COOKIE_SECURE
+              value: {{ .Values.auth.cookieSecure | quote }}
+            - name: SPP_CP_SESSION_COOKIE_NAME
+              value: {{ .Values.auth.cookieName | quote }}
+            - name: SPP_CP_ALLOW_DEFAULT_BOOTSTRAP_PASSWORDS
+              value: {{ .Values.auth.allowDefaultBootstrapPasswords | quote }}
+            - name: SPP_CP_CORS_ORIGINS
+              value: {{ .Values.auth.corsOrigins | quote }}
+            - name: SPP_CP_TRUSTED_PROXY_CIDRS
+              value: {{ join "," .Values.trustedProxies.proxyCidrs | quote }}
+            - name: SPP_CP_TRUSTED_LB_CIDRS
+              value: {{ join "," .Values.trustedProxies.lbCidrs | quote }}
+            - name: SPP_CP_BOOTSTRAP_SECRETS_DIR
+              value: "/etc/spp-cp-secrets"
+          volumeMounts:
+            - name: bootstrap-secrets
+              mountPath: /etc/spp-cp-secrets
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+      volumes:
+        - name: bootstrap-secrets
+          secret:
+            secretName: {{ .Values.secrets.bootstrapSecretName }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spp-cp
+  namespace: {{ .Values.global.namespace }}
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: spp-cp
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spp-cp-internal-lb
+  namespace: {{ .Values.global.namespace }}
+  annotations:
+    networking.gke.io/load-balancer-type: "Internal"
+spec:
+  type: {{ if .Values.loadBalancer.internalServiceEnabled }}LoadBalancer{{ else }}ClusterIP{{ end }}
+  selector:
+    app.kubernetes.io/name: spp-cp
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8000
+  {{- if .Values.loadBalancer.internalServiceEnabled }}
+  loadBalancerSourceRanges:
+    {{- toYaml .Values.loadBalancer.corporateCidrRanges | nindent 4 }}
+  {{- end }}
+{{- if .Values.loadBalancer.internalIngressEnabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: spp-cp-internal
+  namespace: {{ .Values.global.namespace }}
+  annotations:
+    kubernetes.io/ingress.class: "gce-internal"
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /*
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: spp-cp-internal-lb
+                port:
+                  number: 80
+{{- end }}

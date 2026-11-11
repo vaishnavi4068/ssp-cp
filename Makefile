@@ -1,4 +1,4 @@
-.PHONY: generate lint test itest build bundle-policy
+.PHONY: generate lint test itest build bundle-policy test-opa
 
 OAPI_CODEGEN ?= oapi-codegen
 SQLC ?= sqlc
@@ -17,10 +17,12 @@ lint:
 	$(GOVULNCHECK) ./...
 	$(GITLEAKS) detect --no-git --source . --redact
 
-test:
+test: test-opa
 	SSP_OPA_SKIP=true go test ./...
-	$(OPA) test policy/platform
-	-$(OPA) test policy/idp
+
+test-opa:
+	$(OPA) test policy/idp -v
+	-$(OPA) test policy/platform
 
 itest:
 	go test ./test/integration/...
@@ -30,3 +32,6 @@ build:
 
 bundle-policy:
 	go run ./cmd/policyctl build
+
+migrate:
+	go run ./cmd/migrate up

@@ -1,0 +1,445 @@
+{
+  "_provenance": {
+    "status": "RECONSTRUCTED AND UNVERIFIED",
+    "source": "Sanitized hand transcription from 70 HEIC photographs of the design package 'IDP four-gate data model: GCS bucket and Spanner' (originally naming-spec.json, photos 6576-6592, draft dated 21 Oct 2026).",
+    "unverified_source_gaps": [
+      "Unverified (source gap): lines 46-53 of source naming-spec.json (additional reserved words in tokens.purpose.reserved) were [NOT CAPTURED] in the photographs.",
+      "Unverified (source gap): lines 117-119 of source naming-spec.json (additional rule IDs in kinds.spanner_database.rules after SPN-NAME-002) were [NOT CAPTURED] in the photographs; NAM-RSV-001, NAM-IMM-001, NAM-LEG-001 are inferred from naming.md.",
+      "Unverified (source gap): looked_up.kms_key.example real resource path was excluded during sanitization; canonical shape projects/<kms-project>/locations/us-east1/keyRings/<ring>/cryptoKeys/<key> is preserved."
+    ],
+    "overrides_applied": [
+      "GCP only; region us-east1 only (no multi-region US buckets, no nam3 Spanner, no us-east4).",
+      "Environments: only 'nonprod' and 'prod'; name token is 'nonprod' (no hyphen). sandbox, dev, qa, test, pdev, pqa, preprod all map to 'nonprod' everywhere.",
+      "Labels: 'environmentsubtype' label is DROPPED everywhere; 'environmenttype' is 'nonprod' | 'prod' (8 mandatory labels).",
+      "Single state bucket: gs://microdrive-dev-spp-tfstate for now (no per-LOB state buckets).",
+      "Kubernetes runner namespace: spp-platform (ADR-AUT-001, overriding idp-runners)."
+    ]
+  },
+  "spec": "idp-naming",
+  "version": "1.0.0",
+  "status": "proposed",
+  "document": "adr/global/ADR-GLB-006-naming-and-labeling-conventions.md",
+  "tokens": {
+    "lob": {
+      "source": "metadata.lob, checked against the LOB code list",
+      "pattern": "^[a-z][a-z0-9]{1,5}$"
+    },
+    "env": {
+      "source": "metadata.environment, normalized (sandbox/dev/qa/test/pdev/pqa/preprod -> nonprod; prod -> prod)",
+      "allowed": ["nonprod", "prod"]
+    },
+    "app": {
+      "source": "idp.apm_alias.alias for metadata.apm_id",
+      "pattern": "^[a-z][a-z0-9]{1,11}$",
+      "unique_per_apm": true
+    },
+    "purpose": {
+      "source": "user",
+      "min_length": 2,
+      "max_length": 20,
+      "kebab_pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+      "snake_pattern": "^[a-z][a-z0-9]*(_[a-z0-9]+)*$",
+      "reserved": [
+        "non-prod",
+        "nonprod",
+        "prod",
+        "sandbox",
+        "dev",
+        "qa",
+        "test",
+        "pdev",
+        "pqa",
+        "preprod",
+        "restricted",
+        "unrestricted"
+      ],
+      "_source_gap": "Unverified (source gap): lines 46-53 of naming-spec.json [NOT CAPTURED] in photos."
+    },
+    "suffix": {
+      "source": "platform, cryptographically secure random",
+      "length": 4,
+      "alphabet": "abcdefghijklmnopqrstuvwxyz0123456789",
+      "pattern": "^[a-z0-9]{4}$",
+      "max_attempts": 5
+    }
+  },
+  "kinds": {
+    "gcs_bucket": {
+      "template": "{lob}-{env}-{app}-{purpose}-{suffix}",
+      "purpose_style": "kebab",
+      "purpose_required": true,
+      "purpose_max_length": 20,
+      "suffix": true,
+      "max_length": 63,
+      "unique_within": "global",
+      "rules": ["GCS-NAME-001", "GCS-NAME-002", "GCS-NAME-003", "NAM-RSV-001", "NAM-IMM-001", "NAM-LEG-001"]
+    },
+    "spanner_instance": {
+      "template": "{lob}-{env}-{app}[-{purpose}]",
+      "purpose_style": "kebab",
+      "purpose_required": false,
+      "purpose_max_length": 20,
+      "suffix": false,
+      "max_length": 64,
+      "unique_within": "project",
+      "rules": ["SPN-NAME-001", "NAM-RSV-001", "NAM-IMM-001", "NAM-LEG-001"]
+    },
+    "spanner_display_name": {
+      "template": "{LOB} {App}[ {Purpose}] ({env})",
+      "min_length": 4,
+      "max_length": 30,
+      "mutable": true,
+      "shortening": "drop trailing purpose words, then cut the app",
+      "rules": ["SPN-NAME-003"]
+    },
+    "spanner_database": {
+      "template": "{app}[_{purpose}]",
+      "purpose_style": "snake",
+      "purpose_required": false,
+      "purpose_max_length": 17,
+      "suffix": false,
+      "max_length": 30,
+      "unique_within": "instance",
+      "rules": ["SPN-NAME-002", "NAM-RSV-001", "NAM-IMM-001", "NAM-LEG-001"],
+      "_source_gap": "Unverified (source gap): lines 117-119 of naming-spec.json [NOT CAPTURED]; rules after SPN-NAME-002 inferred from naming.md."
+    },
+    "gcp_project": {
+      "template": "{lob}-{env}-{purpose}",
+      "owner": "project vending (legacy project-vending service)",
+      "max_length": 30,
+      "unique_within": "global",
+      "evidence": "legacy project-vending payload: LOB + projectEnvironment + projectPurpose, e.g. <lob>-nonprod-<purpose>"
+    }
+  },
+  "forbidden": {
+    "applies_to": ["gcs_bucket"],
+    "prefixes": ["goog"],
+    "substrings": ["google", "g00gle"]
+  },
+  "rules": {
+    "GCS-NAME-001": {
+      "gate": "requested",
+      "on_failure": "reject",
+      "check": "bucket name equals {lob}-{env}-{app}-{purpose}-{suffix} built from the request"
+    },
+    "GCS-NAME-002": {
+      "gate": "requested",
+      "on_failure": "reject",
+      "check": "no 'goog' prefix and no 'google' or close misspelling (Cloud Storage rule)"
+    },
+    "GCS-NAME-003": {
+      "gate": "intake",
+      "on_failure": "draw a new suffix, up to max_attempts",
+      "check": "name is free in idp.resource and storage.buckets.get returns 404"
+    },
+    "SPN-NAME-001": {
+      "gate": "requested",
+      "on_failure": "reject",
+      "check": "instance name equals {lob}-{env}-{app}[-{purpose}]"
+    },
+    "SPN-NAME-002": {
+      "gate": "requested",
+      "on_failure": "reject",
+      "check": "database name equals {app} or {app}_{purpose}"
+    },
+    "SPN-NAME-003": {
+      "gate": "approved",
+      "on_failure": "replace and record in the guardrail trace",
+      "check": "display name equals the generated one"
+    },
+    "NAM-RSV-001": {
+      "gate": "requested",
+      "on_failure": "reject",
+      "check": "purpose is not a reserved word"
+    },
+    "NAM-IMM-001": {
+      "gate": "requested",
+      "on_failure": "reject",
+      "check": "an update keeps the name of the resource it updates"
+    },
+    "NAM-LEG-001": {
+      "gate": "requested",
+      "on_failure": "allow and add label idp_naming=legacy",
+      "check": "an import keeps its existing name"
+    },
+    "LBL-001": {
+      "gate": "approved",
+      "on_failure": "compute and record in the guardrail trace",
+      "check": "mandatory label set merged over user labels"
+    },
+    "LBL-002": {
+      "gate": "approved",
+      "on_failure": "fix and record in the guardrail trace",
+      "check": "label values are normalized"
+    }
+  },
+  "labels": {
+    "legacy_key_style": "existing enterprise keys keep their lowercase run-together form (sppappid, costcenter)",
+    "new_key_prefix": "idp_",
+    "key_pattern": "^[a-z][a-z0-9_-]{0,62}$",
+    "value_normalization": {
+      "lowercase": true,
+      "replace_pattern": "[^a-z0-9_-]",
+      "replacement": "_",
+      "max_length": 63,
+      "drop_empty": true
+    },
+    "mandatory": [
+      "sppappid",
+      "costcenter",
+      "environmenttype",
+      "primarylob",
+      "datasensitivity",
+      "owner",
+      "provisionedby",
+      "idp_resource_id"
+    ],
+    "legacy_marker": {
+      "key": "idp_naming",
+      "value": "legacy"
+    }
+  },
+  "platform_identifiers": {
+    "kind": {
+      "pattern": "^[a-z][a-z0-9]*(_[a-z0-9]+)*$",
+      "example": "gcs_bucket",
+      "enforced_by": "idp.resource_kind primary key"
+    },
+    "tfvars_collection": {
+      "rule": "plural of the kind",
+      "example": "gcs_buckets",
+      "enforced_by": "idp.resource_kind.tfvars_collection"
+    },
+    "resource_key": {
+      "pattern": "^gcp:[^:]+:[a-z][a-z0-9_]*:[^:]+$",
+      "example": "gcp:<lob>-nonprod-orders-svc:gcs_bucket:<lob>-nonprod-orders-landing-a1b2"
+    },
+    "tf_address": {
+      "rule": "rendered from resource_kind.tf_address_template",
+      "example": "module.spanner_database[\"<lob>-nonprod-orders/orders\"]"
+    },
+    "state_bucket": {
+      "pattern": "^microdrive-dev-spp-tfstate$",
+      "example": "microdrive-dev-spp-tfstate",
+      "_override_note": "Single state bucket gs://microdrive-dev-spp-tfstate overrides source ^idp-tfstate-[a-z][a-z0-9]{1,5}$"
+    },
+    "state_uri": {
+      "pattern": "^gs://microdrive-dev-spp-tfstate/projects/[^/]+/default\\.tfstate$",
+      "example": "gs://microdrive-dev-spp-tfstate/projects/<lob>-nonprod-orders-svc/default.tfstate"
+    },
+    "artifact_uri": {
+      "pattern": "^gs://microdrive-dev-spp-tfstate/projects/[^/]+/expected/rev-[0-9]{6}/terraform\\.tfvars\\.json$",
+      "example": "gs://microdrive-dev-spp-tfstate/projects/<lob>-nonprod-orders-svc/expected/rev-000002/terraform.tfvars.json"
+    },
+    "snapshot_uri": {
+      "pattern": "^gs://microdrive-dev-spp-tfstate/projects/[^/]+/observed/scan-[^/]+/plan\\.json$",
+      "example": "gs://microdrive-dev-spp-tfstate/projects/<lob>-nonprod-orders-svc/observed/scan-2026-10-23T06/plan.json"
+    },
+    "logs_uri": {
+      "pattern": "^gs://microdrive-dev-spp-tfstate/projects/[^/]+/logs/tf-[a-z-]+-[0-9a-f]{20}\\.log$",
+      "example": "gs://microdrive-dev-spp-tfstate/projects/<lob>-nonprod-orders-svc/logs/tf-plan-eba5f9ebf4fafecad8e9.log"
+    },
+    "executor_identity": {
+      "pattern": "^[a-z][a-z0-9-]*@[a-z][a-z0-9-]*\\.iam\\.gserviceaccount\\.com$",
+      "example": "idp-tf@<lob>-nonprod-orders-svc.iam.gserviceaccount.com"
+    },
+    "temporal_workflow_id": {
+      "pattern": "^(req-[0-9a-f-]+|apr-[0-9a-f-]+|su-gcp-[a-z0-9-]+)$",
+      "example": "su-gcp-<lob>-nonprod-orders-svc"
+    },
+    "temporal_schedule_id": {
+      "pattern": "^drift-[a-z0-9-]+$",
+      "example": "drift-<lob>-nonprod-orders-svc"
+    },
+    "task_queue": {
+      "pattern": "^idp-[a-z]+(-[a-z]+)*-v[0-9]+$",
+      "example": "idp-reconciler-v1"
+    },
+    "operation_id": {
+      "pattern": "^op:[0-9a-f-]+:r[0-9]+:(plan|apply|refresh_plan|destroy_plan|import):[^:]+$",
+      "example": "op:af42f828-3378-5ee2-8e9b-2378d2314f97:r1:plan:1"
+    },
+    "k8s_job_name": {
+      "pattern": "^tf-(plan|apply|refresh-plan|destroy-plan|import)-[0-9a-f]{20}$",
+      "example": "tf-plan-eba5f9ebf4fafecad8e9"
+    },
+    "k8s_namespace": {
+      "pattern": "^spp-platform$",
+      "example": "spp-platform",
+      "_override_note": "SPP namespace spp-platform overrides source ^idp-runners$"
+    },
+    "task_key": {
+      "pattern": "^[a-z_]+:.+$",
+      "example": "enable_service:spanner.googleapis.com"
+    },
+    "gate_key": {
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "example": "spanner_data_owner"
+    },
+    "rule_id": {
+      "pattern": "^[A-Z]{3}(-[A-Z]{2,5})?-[0-9]{3}$",
+      "example": "GCS-UBLA-001"
+    },
+    "module_repo": {
+      "pattern": "^(ssp-module|tf-gcp)-[a-z0-9-]+$",
+      "example": "ssp-module-gcs-bucket"
+    }
+  },
+  "looked_up": {
+    "vpc_sc_perimeter": {
+      "owner": "network security",
+      "pattern": "^[a-z][a-z0-9]*_[a-z]+_(restrict|unrestrict)ed_perimeter$",
+      "example": "<lob>_nonprod_restricted_perimeter"
+    },
+    "kms_key": {
+      "owner": "security key vault team (looked up by LOB, environment_type, location='us-east1'; never generated)",
+      "shape": "projects/<kms-project>/locations/us-east1/keyRings/<ring>/cryptoKeys/<key>",
+      "example": "projects/microdrive-dev/locations/us-east1/keyRings/spp-keyring/cryptoKeys/spp-gcs-cmek",
+      "_source_gap": "Unverified (source gap): original KMS key example path excluded during sanitization."
+    },
+    "ad_group": {
+      "owner": "identity team via directory service",
+      "pattern": "^gcp-[a-z][a-z0-9]{1,5}-(nonprod|prod)-[a-z][a-z0-9]{1,11}-(read|write|admin|dba)@example\\.com$",
+      "example": "gcp-<lob>-nonprod-orders-read@example.com"
+    },
+    "service_account": {
+      "owner": "project owners",
+      "pattern": "^[a-z][a-z0-9]{1,11}-[a-z0-9-]*[a-z0-9]$",
+      "min_length": 6,
+      "max_length": 30,
+      "example": "orders-api"
+    },
+    "gcp_project": {
+      "owner": "project vending",
+      "template": "{lob}-{env}-{name}",
+      "example": "<lob>-nonprod-orders-svc"
+    }
+  },
+  "fixtures": {
+    "apm_alias": {
+      "apm12345": "orders"
+    }
+  },
+  "test_vectors": [
+    {
+      "kind": "gcs_bucket",
+      "name": "<lob>-nonprod-orders-landing-a1b2",
+      "environment": "nonprod",
+      "valid": true
+    },
+    {
+      "kind": "gcs_bucket",
+      "name": "<lob>-prod-orders-landing-a1b2",
+      "environment": "nonprod",
+      "valid": false,
+      "expected_rule": "GCS-NAME-001",
+      "reason": "env token in name ('prod') does not match request environment ('nonprod')"
+    },
+    {
+      "kind": "gcs_bucket",
+      "name": "<lob>-nonprod-orders-landing",
+      "environment": "nonprod",
+      "valid": false,
+      "expected_rule": "GCS-NAME-001",
+      "reason": "missing 4-char random suffix"
+    },
+    {
+      "kind": "gcs_bucket",
+      "name": "<LOB>-nonprod-orders-landing-a1b2",
+      "environment": "nonprod",
+      "valid": false,
+      "expected_rule": "GCS-NAME-001",
+      "reason": "uppercase characters not allowed"
+    },
+    {
+      "kind": "gcs_bucket",
+      "name": "<lob>-nonprod-orders-google-a1b2",
+      "environment": "nonprod",
+      "valid": false,
+      "expected_rule": "GCS-NAME-002",
+      "reason": "contains forbidden substring 'google'"
+    },
+    {
+      "kind": "gcs_bucket",
+      "name": "<lob>-nonprod-orders-restricted-a1b2",
+      "environment": "nonprod",
+      "valid": false,
+      "expected_rule": "NAM-RSV-001",
+      "reason": "purpose 'restricted' is reserved (sensitivity belongs in a label)"
+    },
+    {
+      "kind": "gcs_bucket",
+      "action": "update",
+      "valid": false,
+      "expected_rule": "NAM-IMM-001",
+      "reason": "update attempting to rename an existing resource"
+    },
+    {
+      "kind": "gcs_bucket",
+      "action": "import",
+      "valid": true,
+      "expected_rule": "NAM-LEG-001",
+      "added_label": { "idp_naming": "legacy" }
+    },
+    {
+      "kind": "spanner_instance",
+      "name": "orders-db",
+      "environment": "nonprod",
+      "valid": false,
+      "expected_rule": "SPN-NAME-001",
+      "reason": "missing lob and env tokens"
+    },
+    {
+      "kind": "spanner_database",
+      "name": "orders",
+      "app": "orders",
+      "valid": true
+    },
+    {
+      "kind": "spanner_database",
+      "name": "orders_history",
+      "app": "orders",
+      "valid": true
+    },
+    {
+      "kind": "spanner_database",
+      "name": "history",
+      "app": "orders",
+      "valid": false,
+      "expected_rule": "SPN-NAME-002",
+      "reason": "missing app prefix"
+    },
+    {
+      "kind": "spanner_database",
+      "name": "orders-history",
+      "app": "orders",
+      "valid": false,
+      "expected_rule": "SPN-NAME-002",
+      "reason": "databases use underscore '_' not hyphen '-'"
+    }
+  ],
+  "display_name_examples": [
+    {
+      "lob": "SPP",
+      "app": "Orders",
+      "purpose": null,
+      "env": "nonprod",
+      "expected": "SPP Orders (nonprod)"
+    },
+    {
+      "lob": "SPP",
+      "app": "Orders",
+      "purpose": "Reporting",
+      "env": "prod",
+      "expected": "SPP Orders Reporting (prod)"
+    },
+    {
+      "lob": "SPP",
+      "app": "Ledgerengine",
+      "purpose": "Reconciliation",
+      "env": "prod",
+      "expected": "SPP Ledgerengine (prod)",
+      "note": "purpose dropped by 30-char shortening rule"
+    }
+  ]
+}

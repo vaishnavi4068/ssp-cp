@@ -1,0 +1,99 @@
+global:
+  gcpProjectId: "microdrive-dev"
+  gkeClusterName: "md-dev"
+  gcpRegion: "us-east1"
+  namespace: "spp-platform"
+  policyNamespace: "spp-policy"
+  workloadIdentityPool: "microdrive-dev.svc.id.goog"
+  nodeSelector:
+    workload: "spp"
+  tolerations:
+    - key: "dedicated"
+      operator: "Equal"
+      value: "spp"
+      effect: "NoSchedule"
+
+images:
+  registry: "us-east1-docker.pkg.dev/microdrive-dev/spp"
+  repo: "spp-cp"
+  tag: "latest"
+  pullPolicy: "IfNotPresent"
+  opaImage: "openpolicyagent/opa:0.70.0-static"
+
+serviceAccounts:
+  create: true
+  cp:
+    name: "spp-cp"
+    # MVP shares spp-deploy GSA; should be split to its own dedicated least-privilege GSA post-MVP
+    gsaEmail: "spp-deploy@microdrive-dev.iam.gserviceaccount.com"
+  runner:
+    name: "spp-tf-runner"
+    gsaEmail: "spp-deploy@microdrive-dev.iam.gserviceaccount.com"
+
+alloydb:
+  cluster: "spp-alloydb"
+  instance: "spp-alloydb-primary"
+  instanceUri: "projects/microdrive-dev/locations/us-east1/clusters/spp-alloydb/instances/spp-alloydb-primary"
+  host: "10.80.140.2"
+  port: 5432
+  database: "spp_platform"
+  username: "postgres"
+  sslmode: "require"
+  passwordSecretName: "spp-cp-bootstrap"
+  passwordSecretKey: "spp-alloydb-postgres-password"
+  gcpSecretManagerPasswordSecret: "spp-alloydb-postgres-password"
+
+kms:
+  defaultGcsKeyName: "projects/microdrive-dev/locations/us-east1/keyRings/spp-keyring/cryptoKeys/spp-gcs-cmek"
+
+stateBackend:
+  bucket: "microdrive-dev-spp-tfstate"
+
+temporal:
+  address: "temporal-frontend.spp-temporal.svc.cluster.local:7233"
+  namespace: "platform"
+  taskQueue: "spp-gcs-provisioning"
+  gcsWorkflow: "GcsBucketProvisionWorkflow"
+
+opa:
+  enabled: true
+  namespace: "spp-policy"
+  serviceName: "spp-opa"
+  port: 8181
+  url: "http://spp-opa.spp-policy.svc.cluster.local:8181"
+  bundleRevision: "3f9a1c2"
+  replicas: 2
+
+secrets:
+  bootstrapSecretName: "spp-cp-bootstrap"
+  gcpSecretManagerNames:
+    alloydbPostgresPassword: "spp-alloydb-postgres-password"
+    manoj: "spp-factory-bootstrap-manoj"
+    dwayne: "spp-factory-bootstrap-dwayne"
+    norm: "spp-factory-bootstrap-norm"
+    sessionKey: "spp-factory-session-key"
+
+auth:
+  cookieSecure: "true"
+  cookieName: "__Host-spp_cp_session"
+  allowDefaultBootstrapPasswords: "false"
+  corsOrigins: "http://localhost:5173,http://127.0.0.1:5173"
+
+loadBalancer:
+  # Internal-only exposure on GKE md-dev (no Apigee / API Forge, no public Ingress)
+  internalServiceEnabled: true
+  internalIngressEnabled: false
+  corporateCidrRanges:
+    - "10.0.0.0/8"
+    - "172.16.0.0/12"
+    - "192.168.0.0/16"
+
+trustedProxies:
+  proxyCidrs:
+    - "10.136.0.0/14"
+  lbCidrs:
+    - "130.211.0.0/22"
+    - "35.191.0.0/16"
+
+replicas:
+  cp: 1

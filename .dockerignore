@@ -1,2 +1,14 @@
 .git
+<<<<<<< HEAD
 docs/specs
+=======
+.gitignore
+__pycache__
+*.pyc
+.pytest_cache
+.ruff_cache
+.venv
+venv
+tests
+docs
+>>>>>>> origin/main

@@ -1,0 +1,120 @@
+---
+# Standalone Kubernetes manifest for the plain OPA Server Deployment in dedicated namespace `spp-policy` (`WI-003`).
+# Explicitly NOT OPA Gatekeeper. Internal ClusterIP Service only, scheduled onto GKE `md-dev` `spp-pool`.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: spp-policy
+  labels:
+    kubernetes.io/metadata.name: spp-policy
+    app.kubernetes.io/part-of: spp-policy
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spp-opa
+  namespace: spp-policy
+  labels:
+    app.kubernetes.io/name: spp-opa
+    app.kubernetes.io/part-of: spp-policy
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: spp-opa
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: spp-opa
+        app.kubernetes.io/part-of: spp-policy
+    spec:
+      nodeSelector:
+        workload: "spp"
+      tolerations:
+        - key: "dedicated"
+          operator: "Equal"
+          value: "spp"
+          effect: "NoSchedule"
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+      containers:
+        - name: opa
+          image: "openpolicyagent/opa:0.70.0-static"
+          imagePullPolicy: IfNotPresent
+          args:
+            - "run"
+            - "--server"
+            - "--addr=0.0.0.0:8181"
+            - "--log-format=json"
+            - "/policies"
+          ports:
+            - containerPort: 8181
+              name: http
+          volumeMounts:
+            - name: opa-policies
+              mountPath: /policies
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8181
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8181
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+      volumes:
+        - name: opa-policies
+          configMap:
+            name: spp-opa-policies
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spp-opa
+  namespace: spp-policy
+  labels:
+    app.kubernetes.io/name: spp-opa
+    app.kubernetes.io/part-of: spp-policy
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: spp-opa
+  ports:
+    - name: http
+      port: 8181
+      targetPort: 8181
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: spp-opa-allow-platform-only
+  namespace: spp-policy
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: spp-opa
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: spp-platform
+      ports:
+        - protocol: TCP
+          port: 8181
+  egress: []

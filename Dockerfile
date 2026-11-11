@@ -13,7 +13,9 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -o /out/api ./cmd/api \
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=build /out/api /out/worker /out/migrate /out/catalogctl /out/policyctl /usr/local/bin/
 COPY db/migrations /db/migrations
+COPY policy /policy
 ENV SSP_MIGRATIONS_DIR=/db/migrations
+ENV SSP_POLICY_DIR=/policy/idp
 USER nonroot:nonroot
 EXPOSE 8080
 ENTRYPOINT ["/usr/local/bin/api"]
