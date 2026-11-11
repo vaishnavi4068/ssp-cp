@@ -4,10 +4,12 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"os"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/vaishnavi4068/ssp-cp/internal/api/gen"
 	"github.com/vaishnavi4068/ssp-cp/internal/api/handlers"
+	"github.com/vaishnavi4068/ssp-cp/internal/assistant"
 	"github.com/vaishnavi4068/ssp-cp/internal/api/middleware"
 	"github.com/vaishnavi4068/ssp-cp/internal/idp"
 	"github.com/vaishnavi4068/ssp-cp/internal/idp/store"
@@ -19,6 +21,9 @@ import (
 // /healthz and /readyz report process liveness only; dependency checks are not implemented.
 func NewHandler() http.Handler {
 	r := chi.NewRouter()
+	if cors := os.Getenv("SSP_CORS_ORIGINS"); cors != "" {
+		r.Use(middleware.CORS(cors))
+	}
 	r.Use(middleware.RequestID)
 	r.Use(middleware.OTel)
 	r.Use(middleware.Auth)
@@ -38,6 +43,14 @@ func NewHandler() http.Handler {
 		ResponseErrorHandlerFunc: func(w http.ResponseWriter, r *http.Request, err error) {
 			if errors.Is(err, handlers.ErrNotImplemented) {
 				middleware.WriteProblem(w, http.StatusNotImplemented, "not_implemented", "Not Implemented")
+				return
+			}
+			if errors.Is(err, assistant.ErrUnavailable) {
+				middleware.WriteProblem(w, http.StatusServiceUnavailable, "assistant_unavailable", "Sidekick is disabled. Set SSP_ASSISTANT_ENABLED=true and SSP_ASSISTANT_API_KEY in local-dev/.env (see ssp-doc/local-dev/README.md).")
+				return
+			}
+			if errors.Is(err, handlers.ErrBadRequest) {
+				middleware.WriteProblem(w, http.StatusBadRequest, "bad_request", "Bad Request")
 				return
 			}
 			middleware.WriteProblem(w, http.StatusInternalServerError, "internal", "Internal Server Error")

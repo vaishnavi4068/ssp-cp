@@ -10,6 +10,9 @@ import (
 // ErrNotImplemented is returned by every scaffold handler. The HTTP layer maps it to 501.
 var ErrNotImplemented = errors.New("not implemented")
 
+// ErrBadRequest marks client input errors.
+var ErrBadRequest = errors.New("bad request")
+
 // Server is the strict-server implementation. Scaffold: no business logic.
 type Server struct{}
 

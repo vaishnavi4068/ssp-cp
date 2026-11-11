@@ -53,11 +53,17 @@ func TestOperationsReturn501(t *testing.T) {
 		{http.MethodPut, "/v1/imports/imp/mapping"},
 		{http.MethodPost, "/v1/imports/imp/dry-run"},
 		{http.MethodPost, "/v1/imports/imp/execute"},
-		{http.MethodPost, "/v1/assistant/conversations"},
-		{http.MethodPost, "/v1/assistant/conversations/conv/messages"},
 	}
-	if len(ops) != 35 {
-		t.Fatalf("expected 35 operations, got %d", len(ops))
+	assistantDisabled := []struct {
+		method string
+		path   string
+		want   int
+	}{
+		{http.MethodPost, "/v1/assistant/conversations", http.StatusServiceUnavailable},
+		{http.MethodPost, "/v1/assistant/conversations/conv/messages", http.StatusBadRequest},
+	}
+	if len(ops) != 33 {
+		t.Fatalf("expected 33 operations, got %d", len(ops))
 	}
 
 	for _, op := range ops {
@@ -106,6 +112,25 @@ func TestOperationsReturn501(t *testing.T) {
 			}
 			if problem.Status != http.StatusNotImplemented || problem.Type != "https://ssp/errors/not_implemented" {
 				t.Fatalf("problem %+v", problem)
+			}
+		})
+	}
+
+	for _, op := range assistantDisabled {
+		t.Run(op.method+" "+op.path, func(t *testing.T) {
+			req, err := http.NewRequest(op.method, srv.URL+op.path, strings.NewReader(`{}`))
+			if err != nil {
+				t.Fatal(err)
+			}
+			req.Header.Set("Content-Type", "application/json")
+			res, err := http.DefaultClient.Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer res.Body.Close()
+			if res.StatusCode != op.want {
+				b, _ := io.ReadAll(res.Body)
+				t.Fatalf("status %d, want %d, body %s", res.StatusCode, op.want, b)
 			}
 		})
 	}
