@@ -8,10 +8,12 @@ import (
 	"github.com/vaishnavi4068/ssp-cp/internal/api/gen"
 	"github.com/vaishnavi4068/ssp-cp/internal/api/handlers"
 	"github.com/vaishnavi4068/ssp-cp/internal/api/middleware"
+	"github.com/vaishnavi4068/ssp-cp/internal/idp"
 )
 
 // NewHandler returns the control-plane HTTP handler.
 // Generated operations are mounted at /v1 (SSP-API-001) and return 501.
+// Legacy idp HTTP lives at /api/v1 (see internal/idp).
 // /healthz and /readyz report process liveness only; dependency checks are not implemented.
 func NewHandler() http.Handler {
 	r := chi.NewRouter()
@@ -24,6 +26,9 @@ func NewHandler() http.Handler {
 	r.Use(middleware.RateLimit)
 	r.Get("/healthz", health)
 	r.Get("/readyz", health)
+
+	idpStack := idp.NewStack()
+	idpStack.HTTP.Mount(r)
 
 	strict := gen.NewStrictHandlerWithOptions(handlers.New(), nil, gen.StrictHTTPServerOptions{
 		RequestErrorHandlerFunc: func(w http.ResponseWriter, r *http.Request, err error) {

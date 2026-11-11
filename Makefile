@@ -18,8 +18,9 @@ lint:
 	$(GITLEAKS) detect --no-git --source . --redact
 
 test:
-	go test ./...
+	SSP_OPA_SKIP=true go test ./...
 	$(OPA) test policy/platform
+	-$(OPA) test policy/idp
 
 itest:
 	go test ./test/integration/...
