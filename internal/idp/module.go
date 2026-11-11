@@ -15,13 +15,16 @@ type Stack struct {
 }
 
 func NewStack() *Stack {
-	mem := store.NewMemory()
+	backend := store.Backend(store.NewMemoryBackend())
+	if b, err := store.OpenPostgresFromEnv(); err == nil && b != nil {
+		backend = b
+	}
 	opaClient := opa.NewClient()
-	intakeSvc := &intake.Service{Store: mem, OPA: opaClient}
+	intakeSvc := &intake.Service{Store: backend, OPA: opaClient}
 	approvalSvc := &approval.Service{
-		Store: mem, OPA: opaClient, Intake: intakeSvc, Temporal: temporal.NewBridge(),
+		Store: backend, OPA: opaClient, Intake: intakeSvc, Temporal: temporal.NewBridge(),
 	}
 	return &Stack{
-		HTTP: &idphttp.Handler{Intake: intakeSvc, Approval: approvalSvc},
+		HTTP: &idphttp.Handler{Backend: backend, Intake: intakeSvc, Approval: approvalSvc},
 	}
 }

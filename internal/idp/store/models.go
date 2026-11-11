@@ -67,6 +67,7 @@ type ResourceRequest struct {
 	RequestedSpecSHA256  string
 	SourcePointer        string
 	Status               string
+	StatusReason         string
 	RequestedBy          string
 	TemporalWorkflowID   string
 	SubmittedAt          time.Time

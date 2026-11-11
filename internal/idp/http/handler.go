@@ -11,15 +11,19 @@ import (
 	"github.com/vaishnavi4068/ssp-cp/internal/api/middleware"
 	"github.com/vaishnavi4068/ssp-cp/internal/idp/approval"
 	"github.com/vaishnavi4068/ssp-cp/internal/idp/intake"
+	"github.com/vaishnavi4068/ssp-cp/internal/idp/store"
 )
 
 type Handler struct {
+	Backend  store.Backend
 	Intake   *intake.Service
 	Approval *approval.Service
 }
 
 func (h *Handler) Mount(r chi.Router) {
+	q := &QueryHandler{Backend: h.Backend, Intake: h.Intake}
 	r.Route("/api/v1", func(r chi.Router) {
+		q.mount(r)
 		r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"status":"ok","api":"idp"}`))
@@ -36,7 +40,12 @@ func (h *Handler) Mount(r chi.Router) {
 }
 
 func (h *Handler) listKinds(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]any{"kinds": h.Intake.ListKinds()})
+	kinds, err := h.Intake.ListKinds(r.Context())
+	if err != nil {
+		writeErr(w, statusFromErr(err), err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"kinds": kinds})
 }
 
 func (h *Handler) createSubmission(w http.ResponseWriter, r *http.Request) {

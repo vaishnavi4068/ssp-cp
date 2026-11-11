@@ -17,7 +17,7 @@ import (
 )
 
 type Service struct {
-	Store    *store.Memory
+	Store    store.Backend
 	OPA      *opa.Client
 	Intake   *intake.Service
 	Temporal *temporal.Bridge
@@ -31,19 +31,22 @@ type DecisionInput struct {
 }
 
 func (s *Service) RecordDecision(ctx context.Context, approvalID string, in DecisionInput, respondedBy string) (map[string]any, error) {
-	apr, err := s.Store.GetApproval(approvalID)
+	apr, err := s.Store.GetApproval(ctx, approvalID)
 	if err != nil {
 		return nil, errNotFound(err)
 	}
-	req, err := s.Store.GetRequest(apr.RequestID)
+	req, err := s.Store.GetRequest(ctx, apr.RequestID)
 	if err != nil {
 		return nil, err
 	}
-	res := s.Store.ResourceByID(apr.ResourceID)
-	if res == nil {
+	res, err := s.Store.ResourceByID(ctx, apr.ResourceID)
+	if err != nil || res == nil {
 		return nil, fmt.Errorf("resource not found")
 	}
-	decisions := s.Store.ListDecisions(apr.ID)
+	decisions, err := s.Store.ListDecisions(ctx, apr.ID)
+	if err != nil {
+		return nil, err
+	}
 	if len(decisions) == 0 {
 		return nil, fmt.Errorf("no approval decisions")
 	}
@@ -66,9 +69,10 @@ func (s *Service) RecordDecision(ctx context.Context, approvalID string, in Deci
 	target.RespondedAt = &now
 
 	if in.Status == "denied" {
-		apr.Status = "DENIED"
-		apr.DecidedAt = &now
-		req.Status = "DENIED"
+		_ = s.Store.UpdateDecision(ctx, target.ID, in.Status, respondedBy, in.Comment)
+		_ = s.Store.FinalizeApproval(ctx, store.ApprovalFinalize{
+			ApprovalID: apr.ID, Denied: true, RequestReason: in.Comment, RequestStatus: "DENIED",
+		})
 		return s.Intake.GetRequest(ctx, req.ID)
 	}
 	if in.Status == "escalated" {
@@ -99,7 +103,10 @@ func (s *Service) RecordDecision(ctx context.Context, approvalID string, in Deci
 		return s.Intake.GetRequest(ctx, req.ID)
 	}
 
-	kindMeta := s.Store.Kinds[req.Kind]
+	kindMeta, err := s.Store.GetKind(ctx, req.Kind)
+	if err != nil {
+		return nil, err
+	}
 	opaIn := map[string]any{
 		"stage": "approved", "cloud": "gcp", "app_alias": "orders",
 		"resource_id": res.ID, "document": requestedDoc,
@@ -160,15 +167,18 @@ func (s *Service) RecordDecision(ctx context.Context, approvalID string, in Deci
 	specBytes, _ := json.Marshal(approvedDoc)
 	sha := hash.MustCanonicalSHA256(approvedDoc)
 	trace, _ := json.Marshal(opaRes.GuardrailTrace)
-	apr.ApprovedSpec = specBytes
-	apr.ApprovedSpecSHA256 = sha
-	apr.GuardrailTrace = trace
-	apr.Status = "APPROVED"
-	apr.DecidedAt = &now
-	req.Status = "APPROVED"
-	res.Gate = "APPROVED"
+	_ = s.Store.UpdateDecision(ctx, target.ID, in.Status, respondedBy, in.Comment)
+	for _, d := range decisions {
+		if d.Status == "approved" && d.RespondedAt == nil {
+			_ = s.Store.UpdateDecision(ctx, d.ID, d.Status, d.RespondedBy, d.ResponseComment)
+		}
+	}
+	_ = s.Store.FinalizeApproval(ctx, store.ApprovalFinalize{
+		ApprovalID: apr.ID, ApprovedSpec: specBytes, ApprovedSpecSHA256: sha, GuardrailTrace: trace,
+		RequestStatus: "APPROVED", ResourceGate: "APPROVED",
+	})
 
-	su := s.Store.StateUnitByID(res.StateUnitID)
+	su, _ := s.Store.StateUnitByID(ctx, res.StateUnitID)
 	projectID := ""
 	stateBucket := "microdrive-dev-spp-tfstate"
 	if su != nil {

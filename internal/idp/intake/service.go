@@ -10,11 +10,12 @@ import (
 	"github.com/vaishnavi4068/ssp-cp/internal/idp/hash"
 	"github.com/vaishnavi4068/ssp-cp/internal/idp/naming"
 	"github.com/vaishnavi4068/ssp-cp/internal/idp/opa"
+	"github.com/vaishnavi4068/ssp-cp/internal/idp/query"
 	"github.com/vaishnavi4068/ssp-cp/internal/idp/store"
 )
 
 type Service struct {
-	Store *store.Memory
+	Store store.Backend
 	OPA   *opa.Client
 }
 
@@ -124,8 +125,11 @@ func (s *Service) SubmitSpannerStack(ctx context.Context, in SpannerStackRequest
 		IdempotencyKey: coalesce(in.IdempotencyKey, subID), RawPayload: raw,
 		RawPayloadSHA256: hash.MustCanonicalSHA256(in), SubmittedAt: s.Store.Now(),
 	}
-	s.Store.SaveSubmission(sub)
-	su := s.Store.EnsureStateUnit(projectID, lob, env, apm)
+	su, err := s.Store.EnsureStateUnit(ctx, projectID, lob, env, apm)
+	if err != nil {
+		return nil, err
+	}
+	_ = s.Store.PersistIntake(ctx, store.IntakePersist{Submission: sub})
 
 	instDoc := map[string]any{"api_version": "idp.spp/v1", "kind": "spanner_instance", "action": "create", "metadata": instMeta, "spec": instSpec}
 	dbDoc := map[string]any{"api_version": "idp.spp/v1", "kind": "spanner_database", "action": "create", "metadata": dbMeta, "spec": dbSpec}
@@ -158,8 +162,13 @@ func (s *Service) persistSubmission(ctx context.Context, doc map[string]any, in 
 		IdempotencyKey: coalesce(in.IdempotencyKey, subID), RawPayload: raw,
 		RawPayloadSHA256: hash.MustCanonicalSHA256(in), SubmittedAt: s.Store.Now(),
 	}
-	s.Store.SaveSubmission(sub)
-	su := s.Store.EnsureStateUnit(projectID, lob, env, apm)
+	su, err := s.Store.EnsureStateUnit(ctx, projectID, lob, env, apm)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.Store.PersistIntake(ctx, store.IntakePersist{Submission: sub}); err != nil {
+		return nil, err
+	}
 	res, req, err := s.createOne(ctx, doc, su, subID, requestedBy, pointer, parentID, apm)
 	if err != nil {
 		return nil, err
@@ -172,7 +181,10 @@ func (s *Service) createOne(ctx context.Context, doc map[string]any, su *store.S
 	meta, _ := doc["metadata"].(map[string]any)
 	spec, _ := doc["spec"].(map[string]any)
 	name := fmt.Sprint(spec["name"])
-	kindMeta := s.Store.Kinds[kind]
+	kindMeta, err := s.Store.GetKind(ctx, kind)
+	if err != nil {
+		return nil, nil, err
+	}
 	instance := ""
 	if kind == "spanner_database" {
 		instance = fmt.Sprint(spec["instance"])
@@ -207,19 +219,25 @@ func (s *Service) createOne(ctx context.Context, doc map[string]any, su *store.S
 		SourcePointer: pointer, Status: "PENDING_APPROVAL", RequestedBy: requestedBy,
 		TemporalWorkflowID: "req-" + reqID, SubmittedAt: s.Store.Now(),
 	}
-	gate := s.Store.Gates[kindMeta.ApprovalGateKey]
+	gate, err := s.Store.GetGate(ctx, kindMeta.ApprovalGateKey)
+	if err != nil {
+		return nil, nil, err
+	}
 	apr := &store.Approval{
 		ID: aprID, RequestID: reqID, ResourceID: rid, GateKey: kindMeta.ApprovalGateKey,
 		GateVersion: gate.Version, Status: "PENDING",
 	}
-	s.Store.SaveResource(res)
-	s.Store.SaveRequest(req)
-	s.Store.SaveApproval(apr)
-	s.seedDecisions(apr, gate, meta)
+	decs := s.seedDecisions(apr, gate, meta)
+	if err := s.Store.PersistIntake(ctx, store.IntakePersist{
+		Resource: res, Request: req, Approval: apr, Decisions: decs,
+	}); err != nil {
+		return nil, nil, err
+	}
 	return res, req, nil
 }
 
-func (s *Service) seedDecisions(apr *store.Approval, gate store.GateConfig, meta map[string]any) {
+func (s *Service) seedDecisions(apr *store.Approval, gate store.GateConfig, meta map[string]any) []*store.ApprovalDecision {
+	var decs []*store.ApprovalDecision
 	var cfg struct {
 		Approvers []struct {
 			Key          string `json:"key"`
@@ -234,12 +252,12 @@ func (s *Service) seedDecisions(apr *store.Approval, gate store.GateConfig, meta
 		if a.TicketField == "/metadata/owner" {
 			identity = fmt.Sprint(meta["owner"])
 		}
-		d := &store.ApprovalDecision{
+		decs = append(decs, &store.ApprovalDecision{
 			ID: uuid.New().String(), ApprovalID: apr.ID, ApproverKey: a.Key,
 			ApproverIdentity: identity, Phase: i, Mandatory: a.Mandatory, Status: "pending",
-		}
-		s.Store.SaveDecision(d)
+		})
 	}
+	return decs
 }
 
 func (s *Service) detail(req *store.ResourceRequest, res *store.Resource) map[string]any {
@@ -260,27 +278,26 @@ func (s *Service) detail(req *store.ResourceRequest, res *store.Resource) map[st
 		},
 		"approval": map[string]any{
 			"approval_id": res.CurrentApprovalID,
-			"gate_key": s.Store.Kinds[req.Kind].ApprovalGateKey,
-			"status": "PENDING",
+			"gate_key":    kindApprovalGate(s, req.Kind),
+			"status":      "PENDING",
 		},
 	}
 }
 
+func kindApprovalGate(s *Service, kind string) string {
+	k, err := s.Store.GetKind(context.Background(), kind)
+	if err != nil {
+		return ""
+	}
+	return k.ApprovalGateKey
+}
+
 func (s *Service) GetRequest(ctx context.Context, id string) (map[string]any, error) {
-	req, err := s.Store.GetRequest(id)
+	bundle, err := s.Store.GetRequestBundle(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-	res := s.Store.ResourceByID(req.ResourceID)
-	if res == nil {
-		return nil, fmt.Errorf("resource missing")
-	}
-	out := s.detail(req, res)
-	apr, _ := s.Store.GetApproval(res.CurrentApprovalID)
-	if apr != nil {
-		out["approval"].(map[string]any)["status"] = apr.Status
-	}
-	return out, nil
+	return query.FormatRequestDetail(bundle), nil
 }
 
 func coalesce(v, def string) string {
@@ -291,13 +308,14 @@ func coalesce(v, def string) string {
 }
 
 // ListKinds returns catalog entries for GET /api/v1/kinds.
-func (s *Service) ListKinds() []map[string]any {
-	var out []map[string]any
-	for _, k := range s.Store.Kinds {
-		out = append(out, map[string]any{
-			"kind": k.Kind, "tfvars_collection": k.TFVarsCollection,
-			"opa_package": k.OPAPackage, "approval_gate_key": k.ApprovalGateKey,
-		})
+func (s *Service) ListKinds(ctx context.Context) ([]map[string]any, error) {
+	kinds, err := s.Store.ListKinds(ctx)
+	if err != nil {
+		return nil, err
 	}
-	return out
+	out := make([]map[string]any, 0, len(kinds))
+	for _, k := range kinds {
+		out = append(out, query.FormatKindRow(k))
+	}
+	return out, nil
 }
