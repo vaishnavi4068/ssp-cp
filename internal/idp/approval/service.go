@@ -114,7 +114,7 @@ func (s *Service) RecordDecision(ctx context.Context, approvalID string, in Deci
 	if kms := os.Getenv("SSP_KMS_KEY_PLACEHOLDER"); kms != "" {
 		opaIn["kms_key_name"] = kms
 	}
-	opaRes, err := s.OPA.Evaluate(ctx, kindMeta.OPAPackage, opaIn)
+	opaRes, err := opa.EvaluateAndRecord(ctx, s.OPA, s.Store, "approved", req.ID, kindMeta.OPAPackage, opaIn)
 	if err != nil {
 		return nil, err
 	}
@@ -163,6 +163,11 @@ func (s *Service) RecordDecision(ctx context.Context, approvalID string, in Deci
 	_ = s.Store.FinalizeApproval(ctx, store.ApprovalFinalize{
 		ApprovalID: apr.ID, ApprovedSpec: specBytes, ApprovedSpecSHA256: sha, GuardrailTrace: trace,
 		RequestStatus: "APPROVED", ResourceGate: "APPROVED",
+	})
+	gateDetail, _ := json.Marshal(map[string]any{"decision": opaRes.Decision, "approval_id": apr.ID})
+	_ = s.Store.RecordGateEvent(ctx, store.GateEvent{
+		StateUnitID: res.StateUnitID, ResourceID: res.ID, RequestID: req.ID, Gate: "APPROVED",
+		EventType: "approval_complete", Actor: respondedBy, Detail: gateDetail,
 	})
 
 	su, _ := s.Store.StateUnitByID(ctx, res.StateUnitID)

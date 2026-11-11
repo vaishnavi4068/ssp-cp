@@ -14,6 +14,7 @@ import (
 
 func TestMain(m *testing.M) {
 	_ = os.Setenv("SSP_OPA_SKIP", "true")
+	_ = os.Setenv("SSP_AUTH_DISABLED", "true")
 	os.Exit(m.Run())
 }
 

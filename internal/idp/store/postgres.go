@@ -19,6 +19,9 @@ type Postgres struct {
 	q    *db.Queries
 }
 
+// Queries exposes sqlc for auth and auxiliary writers.
+func (p *Postgres) Queries() *db.Queries { return p.q }
+
 func OpenPostgresFromEnv() (Backend, error) {
 	dsn := os.Getenv("SSP_DATABASE_URL")
 	if dsn == "" {
@@ -61,8 +64,11 @@ func (p *Postgres) ListKinds(ctx context.Context) ([]ResourceKind, error) {
 	out := make([]ResourceKind, 0, len(rows))
 	for _, row := range rows {
 		out = append(out, ResourceKind{
-			Kind: row.Kind, TFVarsCollection: row.TfvarsCollection, TFAddressTemplate: row.TfAddressTemplate,
-			OPAPackage: row.OpaPackage, ApprovalGateKey: textVal(row.ApprovalGateKey),
+			Kind: row.Kind, Cloud: row.Cloud, ParentKind: textVal(row.ParentKind),
+			DisplayName: row.DisplayName, SchemaURI: row.SchemaUri,
+			SchemaVersion: row.SchemaVersion, TFModuleSource: row.TfModuleSource,
+			TFVarsCollection: row.TfvarsCollection, TFAddressTemplate: row.TfAddressTemplate,
+			OPAPackage: row.OpaPackage, ApprovalGateKey: textVal(row.ApprovalGateKey), Enabled: row.Enabled,
 		})
 	}
 	return out, nil

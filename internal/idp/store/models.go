@@ -9,11 +9,17 @@ import (
 
 type ResourceKind struct {
 	Kind              string
+	Cloud             string
+	ParentKind        string
+	DisplayName       string
+	SchemaURI         string
+	SchemaVersion     string
+	TFModuleSource    string
 	TFVarsCollection  string
 	TFAddressTemplate string
 	OPAPackage        string
 	ApprovalGateKey   string
-	ParentKind        string
+	Enabled           bool
 }
 
 type StateUnit struct {

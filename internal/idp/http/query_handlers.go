@@ -107,7 +107,12 @@ func (q *QueryHandler) getResource(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusNotFound, fmt.Errorf("resource not found"))
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"status": rows[0], "observed": nil, "drift_findings": []any{}})
+	observed, hasObs, _ := q.Backend.GetResourceObserved(r.Context(), id)
+	if !hasObs {
+		observed = nil
+	}
+	drift, _ := q.Backend.ListDriftFindings(r.Context(), id)
+	writeJSON(w, http.StatusOK, map[string]any{"status": rows[0], "observed": observed, "drift_findings": drift})
 }
 
 func (q *QueryHandler) freezeStateUnit(w http.ResponseWriter, r *http.Request) {

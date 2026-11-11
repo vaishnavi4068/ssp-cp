@@ -35,6 +35,57 @@ type Backend interface {
 	ResourceByID(ctx context.Context, resourceID string) (*Resource, error)
 	StateUnitByID(ctx context.Context, stateUnitID string) (*StateUnit, error)
 	SetStateUnitStatus(ctx context.Context, stateUnitID, status string) error
+
+	// Events / audit (Python parity)
+	RecordPolicyEvaluation(ctx context.Context, pe PolicyEvaluation) (string, error)
+	ListPolicyEvaluations(ctx context.Context, requestID string) ([]PolicyEvaluation, error)
+	RecordGateEvent(ctx context.Context, ev GateEvent) error
+	RecordLifecycleTask(ctx context.Context, task LifecycleTask) error
+	ListLifecycleTasks(ctx context.Context, approvalID string) ([]LifecycleTask, error)
+	ListAudit(ctx context.Context, resourceID, requestID string, limit int) (AuditSnapshot, error)
+	Ready(ctx context.Context) error
+	GetResourceObserved(ctx context.Context, resourceID string) (map[string]any, bool, error)
+	ListDriftFindings(ctx context.Context, resourceID string) ([]map[string]any, error)
+}
+
+type PolicyEvaluation struct {
+	ID              string
+	Stage           string
+	RequestID       string
+	OPAPackage      string
+	BundleRevision  string
+	InputSHA256     string
+	Decision        string
+	Violations      []byte
+	Mutations       []byte
+	EvaluatedAt     time.Time
+}
+
+type GateEvent struct {
+	StateUnitID string
+	ResourceID  string
+	RequestID   string
+	Gate        string
+	EventType   string
+	Actor       string
+	Detail      []byte
+}
+
+type LifecycleTask struct {
+	ID         string
+	ResourceID string
+	ApprovalID string
+	Phase      string
+	TaskType   string
+	TaskKey    string
+	Spec       []byte
+	Status     string
+}
+
+type AuditSnapshot struct {
+	GateEvents        []map[string]any
+	AuditLogs         []map[string]any
+	PolicyEvaluations []map[string]any
 }
 
 // IntakePersist captures one resource intake transaction.
