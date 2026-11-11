@@ -1,0 +1,18 @@
+---
+description: ssp-cp (Go control plane) rules
+globs: ["cmd/**", "internal/**", "pkg/**", "db/**", "policy/**", "api/**"]
+alwaysApply: false
+---
+
+# ssp-cp rules
+
+- Contract first: change `api/openapi.yaml` (mirrored from ssp-doc/10-product/12-openapi.yaml), run `make generate`, then implement handlers in `internal/api/handlers`. Never edit `internal/api/gen`.
+- Handlers are thin: validate → authorize (persona + entitlement) → call a service function → map errors to RFC 9457 problems. Business logic lives in `internal/{catalog,policy,render,workflows,activities}`.
+- Approval logic is one function (`approval.Compute`) used by both `preflight` and `ComputeApproval` (SSP-CP-001).
+- Temporal workflows (`internal/workflows`): deterministic only — no time.Now, no random, no I/O, no maps iteration order dependence; all side effects in activities; every activity has explicit timeouts and retry policies; new signals/queries documented in ssp-doc/10-product/13-workflows-spec.md §8; breaking changes use `workflow.GetVersion`; add/refresh replay histories in `testdata/histories/`.
+- Activities receive IDs and references, resolve secrets inside, return receipts only (SSP-CP-008).
+- Database: sqlc queries in `internal/store/queries/*.sql`; migrations in `db/migrations` forward-only with a rollback file; state transitions only via `TransitionOrder` in one transaction with the `order_event` insert (SSP-DM-001).
+- Policy: baseline Rego under `policy/platform` with tests; input documents exactly as ssp-doc/10-product/14-policy-spec.md; never relax a rule without a T3 label.
+- Rendering (`internal/render`) is deterministic and canonical; the same package backs `/orders/{id}/code`.
+- Logging with `log/slog` structured fields `order_id, run_id, tenant_id, workflow_id, request_id`; OpenTelemetry spans on handlers and activities.
+- Tests: unit per package; `make itest` with testcontainers (Postgres) and the Temporal dev server; twins for ServiceNow/CMDB.

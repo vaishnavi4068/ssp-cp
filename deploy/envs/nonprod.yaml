@@ -1,0 +1,7 @@
+image:
+  repository: ssp-cp
+  tag: dev
+api:
+  replicas: 2
+worker:
+  replicas: 2

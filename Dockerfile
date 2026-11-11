@@ -1,29 +1,21 @@
-FROM python:3.12-slim
+# ssp-cp control plane. Final image is distroless and non-root.
+FROM golang:1.26 AS build
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -o /out/api ./cmd/api \
+ && CGO_ENABLED=0 GOOS=linux go build -trimpath -o /out/worker ./cmd/worker \
+ && CGO_ENABLED=0 GOOS=linux go build -trimpath -o /out/migrate ./cmd/migrate \
+ && CGO_ENABLED=0 GOOS=linux go build -trimpath -o /out/catalogctl ./cmd/catalogctl \
+ && CGO_ENABLED=0 GOOS=linux go build -trimpath -o /out/policyctl ./cmd/policyctl
 
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
-
-RUN groupadd -g 10001 spp && \
-    useradd -u 10001 -g spp -m -s /bin/bash spp
-
-WORKDIR /app
-
-COPY requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir -r /app/requirements.txt
-
-COPY alembic.ini /app/alembic.ini
-COPY db /app/db
-COPY policy /app/policy
-COPY specs /app/specs
-COPY app /app/app
-
-RUN chown -R spp:spp /app
-
-USER 10001:10001
-
-ENV SPP_CP_REPO_ROOT=/app \
-    PORT=8000
-
-EXPOSE 8000
-
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+FROM gcr.io/distroless/static-debian12:nonroot
+COPY --from=build /out/api /out/worker /out/migrate /out/catalogctl /out/policyctl /usr/local/bin/
+COPY db/migrations /db/migrations
+COPY policy /policy
+ENV SSP_MIGRATIONS_DIR=/db/migrations
+ENV SSP_POLICY_DIR=/policy/idp
+USER nonroot:nonroot
+EXPOSE 8080
+ENTRYPOINT ["/usr/local/bin/api"]

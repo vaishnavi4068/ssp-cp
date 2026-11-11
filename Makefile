@@ -1,23 +1,37 @@
-.PHONY: test test-opa test-py migrate lint
+.PHONY: generate lint test itest build bundle-policy test-opa
 
-PROJECT_ID ?= microdrive-dev
-REGION ?= us-east1
-CLUSTER ?= md-dev
-NAMESPACE ?= spp-platform
-POLICY_NAMESPACE ?= spp-policy
-REGISTRY ?= us-east1-docker.pkg.dev/$(PROJECT_ID)/spp
-IMAGE_TAG ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo v1.0.0)
+OAPI_CODEGEN ?= oapi-codegen
+SQLC ?= sqlc
+GOLANGCI_LINT ?= golangci-lint
+GOVULNCHECK ?= govulncheck
+GITLEAKS ?= gitleaks
+OPA ?= opa
 
-test: test-opa test-py
-
-test-opa:
-	opa test policy/ -v
-
-test-py:
-	PYTHONPATH=. pytest tests/ -v
-
-migrate:
-	PYTHONPATH=. python3 -m alembic upgrade head
+generate:
+	$(OAPI_CODEGEN) -config oapi-codegen.yaml api/openapi.yaml
+	$(SQLC) generate
+	git diff --exit-code
 
 lint:
-	ruff check app/ tests/
+	$(GOLANGCI_LINT) run
+	$(GOVULNCHECK) ./...
+	$(GITLEAKS) detect --no-git --source . --redact
+
+test: test-opa
+	SSP_OPA_SKIP=true go test ./...
+
+test-opa:
+	$(OPA) test policy/idp -v
+	-$(OPA) test policy/platform
+
+itest:
+	go test ./test/integration/...
+
+build:
+	docker build -t ssp-cp:dev .
+
+bundle-policy:
+	go run ./cmd/policyctl build
+
+migrate:
+	go run ./cmd/migrate up

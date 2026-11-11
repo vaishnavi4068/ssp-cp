@@ -1,0 +1,22 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ssp-cp-migrate
+  annotations:
+    helm.sh/hook: pre-upgrade,pre-install
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  template:
+    spec:
+      serviceAccountName: ssp-cp-migrate
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+      containers:
+        - name: migrate
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          command: ["/usr/local/bin/migrate", "up"]
+          envFrom:
+            - configMapRef:
+                name: ssp-cp

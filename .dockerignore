@@ -1,4 +1,7 @@
 .git
+<<<<<<< HEAD
+docs/specs
+=======
 .gitignore
 __pycache__
 *.pyc
@@ -8,3 +11,4 @@ __pycache__
 venv
 tests
 docs
+>>>>>>> origin/main
