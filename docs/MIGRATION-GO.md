@@ -43,4 +43,4 @@ opa test policy/idp
 
 ## Workers
 
-`GcsBucketProvisionWorkflow` remains in **ssp-workers** (Python today). Go cp **starts** the workflow; it does not register that workflow in `cmd/worker` (same as Python cp).
+`GcsBucketProvisionWorkflow` runs in **ssp-workers** (Go worker on `spp-gcs-provisioning`). Go **ssp-cp** starts the workflow; it does not register provision workflows in `cmd/worker`.
